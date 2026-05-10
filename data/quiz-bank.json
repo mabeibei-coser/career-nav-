@@ -1,0 +1,173 @@
+{
+  "version": "2026-05-10",
+  "dimensions": [
+    {
+      "key": "personality",
+      "name": "性格底色",
+      "questions": [
+        {
+          "id": "P-01",
+          "text": "在一个全是陌生人的场合里，我能比较自然地和别人聊起来，不会觉得太别扭",
+          "reverse": false,
+          "weights": { "communication": 1.0 }
+        },
+        {
+          "id": "P-02",
+          "text": "比起一个人闷头把事情做完，我更喜欢和别人一起讨论着把事情慢慢推进",
+          "reverse": false,
+          "weights": { "collaboration": 1.0 }
+        },
+        {
+          "id": "P-03",
+          "text": "需要把自己的想法清楚说给别人听的时候，我经常觉得有点吃力，话到嘴边说不顺",
+          "reverse": true,
+          "weights": { "communication": 0.9 }
+        },
+        {
+          "id": "P-04",
+          "text": "和别人配合做一件事时，我习惯主动去问问大家进度卡在哪儿、有没有需要帮忙的",
+          "reverse": false,
+          "weights": { "collaboration": 0.9, "communication": 0.6 }
+        },
+        {
+          "id": "P-05",
+          "text": "在群体讨论里我更愿意先听别人说，自己尽量少出声，免得说错话或者打断别人",
+          "reverse": true,
+          "weights": { "communication": 0.8 }
+        },
+        {
+          "id": "P-06",
+          "text": "我不太喜欢别人插手我手头的事情，自己一个人安静做反而更顺、效率更高",
+          "reverse": true,
+          "weights": { "collaboration": 0.9 }
+        }
+      ]
+    },
+    {
+      "key": "workstyle",
+      "name": "工作风格",
+      "questions": [
+        {
+          "id": "W-01",
+          "text": "答应别人的事情，我会想办法在约定的时间之前交付出去，不太喜欢拖到最后一刻",
+          "reverse": false,
+          "weights": { "execution": 1.0 }
+        },
+        {
+          "id": "W-02",
+          "text": "遇到自己没接触过的工具或者方法，我会主动找点资料把它弄明白，不太怕从零学起",
+          "reverse": false,
+          "weights": { "learning": 1.0 }
+        },
+        {
+          "id": "W-03",
+          "text": "待办事项列了一长串，我经常会拖到最后才开始动手，前面那段时间总想再缓一缓",
+          "reverse": true,
+          "weights": { "execution": 0.9 }
+        },
+        {
+          "id": "W-04",
+          "text": "看到一个自己不熟悉的新领域内容，我会有兴趣多花点时间去了解一下再说",
+          "reverse": false,
+          "weights": { "learning": 0.9 }
+        },
+        {
+          "id": "W-05",
+          "text": "做事的时候我习惯先把步骤列出来、把清单排好，再按顺序一项项往下走",
+          "reverse": false,
+          "weights": { "execution": 0.8, "learning": 0.5 }
+        },
+        {
+          "id": "W-06",
+          "text": "学新东西如果超过一阵子还没上手，我就有点懒得再继续花时间，倾向放下不学了",
+          "reverse": true,
+          "weights": { "learning": 0.9 }
+        }
+      ]
+    },
+    {
+      "key": "value",
+      "name": "价值驱动",
+      "questions": [
+        {
+          "id": "V-01",
+          "text": "选工作的时候，稳定和安全感对我来说是排在比较前面的因素，比新鲜感重要得多",
+          "reverse": false,
+          "weights": {}
+        },
+        {
+          "id": "V-02",
+          "text": "如果一份工作让我看不到什么成长空间，就算待遇还不错，我也会犹豫要不要去",
+          "reverse": false,
+          "weights": {}
+        },
+        {
+          "id": "V-03",
+          "text": "比起按部就班完成任务，我更想去做一些能让我看到自己影响和价值的事情",
+          "reverse": false,
+          "weights": {}
+        },
+        {
+          "id": "V-04",
+          "text": "工作其实就是工作，对我来说能稳定挣到钱、按时下班，已经差不多够了",
+          "reverse": true,
+          "weights": {}
+        },
+        {
+          "id": "V-05",
+          "text": "做一些对别人或者社会多多少少有点意义的事情，会让我比平时更有干劲",
+          "reverse": false,
+          "weights": {}
+        },
+        {
+          "id": "V-06",
+          "text": "只要钱给到位，工作内容是不是自己喜欢、有没有意义，我都不会太在意",
+          "reverse": true,
+          "weights": {}
+        }
+      ]
+    },
+    {
+      "key": "direction",
+      "name": "适配方向",
+      "questions": [
+        {
+          "id": "D-01",
+          "text": "面对一堆数据或者密密麻麻的表格，我能比较耐心地一项项理清楚，不太容易烦",
+          "reverse": false,
+          "weights": { "data": 1.0 }
+        },
+        {
+          "id": "D-02",
+          "text": "几件事情同时压过来的时候，我基本能稳住节奏，按轻重缓急一件件处理",
+          "reverse": false,
+          "weights": { "stress": 1.0 }
+        },
+        {
+          "id": "D-03",
+          "text": "看到一大堆数字或者长篇文字，我会下意识想躲开，不太愿意花时间逐项看",
+          "reverse": true,
+          "weights": { "data": 0.9 }
+        },
+        {
+          "id": "D-04",
+          "text": "事情突然变多或者被反复打断的时候，我比较容易心烦，状态也会受影响",
+          "reverse": true,
+          "weights": { "stress": 0.9 }
+        },
+        {
+          "id": "D-05",
+          "text": "我习惯把零散的信息整理成清单或表格，看清全貌之后再做下一步判断",
+          "reverse": false,
+          "weights": { "data": 0.9, "stress": 0.5 }
+        },
+        {
+          "id": "D-06",
+          "text": "结果一时没出来、或者方案被反复修改，我也愿意慢慢调整、不轻易放弃",
+          "reverse": false,
+          "weights": { "stress": 0.9 }
+        }
+      ]
+    }
+  ]
+}

@@ -75,6 +75,7 @@ C\:*
 # admin data (DB + files, keep directory structure but not content)
 /data/*
 !/data/.gitkeep
+!/data/quiz-bank.json
 !/data/reports/
 /data/reports/*
 !/data/reports/.gitkeep
