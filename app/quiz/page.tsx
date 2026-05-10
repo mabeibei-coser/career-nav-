@@ -68,12 +68,12 @@ export default function QuizPage() {
 
   /**
    * 分两阶段拉题：
-   * 1. GET /api/quiz/bank/q1 → 毫秒级拿 Q1 立即显示
-   * 2. POST /api/quiz/bank/generated → 后台 5-15s 生成 Q2-Q8
+   * 1. GET /api/quiz/bank/q1 → 毫秒级拿固定 SJT-01 + SJT-02 立即显示
+   * 2. POST /api/quiz/bank/generated → 后台 LLM 个性化生成 SJT-03 到 SJT-08（6 题）
    *
-   * 用户在做 Q1 时 LLM 在后台生成，避免开屏白屏 5-15 秒。
+   * 用户在做前 2 题时 LLM 在后台生成，有效消除白屏等待。
    */
-  const fetchGenerated = useCallback(async (fd: JobFormData, q1: QuizQuestion) => {
+  const fetchGenerated = useCallback(async (fd: JobFormData, fixedQs: QuizQuestion[]) => {
     setGenerating(true);
     setGeneratedError(null);
     try {
@@ -99,7 +99,7 @@ export default function QuizPage() {
       if (!Array.isArray(generated) || generated.length === 0) {
         throw new Error("剩余题目返回为空");
       }
-      const fullList = [q1, ...generated];
+      const fullList = [...fixedQs, ...generated];
       setQuestions(fullList);
       try {
         sessionStorage.setItem("quizQuestions", JSON.stringify(fullList));
@@ -116,8 +116,8 @@ export default function QuizPage() {
       setLoading(true);
       setLoadError(null);
       setGeneratedError(null);
-      // 1. 立即拉 Q1（毫秒级）
-      let q1: QuizQuestion;
+      // 1. 立即拉固定缓冲题 SJT-01 + SJT-02（毫秒级）
+      let fixedQs: QuizQuestion[];
       try {
         const res = await fetch(
           `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/quiz/bank/q1`,
@@ -132,22 +132,22 @@ export default function QuizPage() {
           throw new Error(msg);
         }
         const data = await res.json();
-        q1 = data?.question as QuizQuestion;
-        if (!q1 || !q1.id) throw new Error("固定题返回为空");
+        fixedQs = (data?.questions ?? []) as QuizQuestion[];
+        if (!fixedQs.length || !fixedQs[0]?.id) throw new Error("固定题返回为空");
       } catch (e) {
         setLoadError(e instanceof Error ? e.message : "题目加载失败");
         setLoading(false);
         return;
       }
 
-      setQuestions([q1]);
+      setQuestions(fixedQs);
       try {
-        sessionStorage.setItem("quizQuestions", JSON.stringify([q1]));
+        sessionStorage.setItem("quizQuestions", JSON.stringify(fixedQs));
       } catch {}
       setLoading(false);
 
-      // 2. 后台拉 Q2-Q8（不阻塞 UI）
-      void fetchGenerated(fd, q1);
+      // 2. 后台 LLM 个性化生成 SJT-03 到 SJT-08（不阻塞 UI，用户可先答前 2 题）
+      void fetchGenerated(fd, fixedQs);
     },
     [fetchGenerated],
   );
@@ -466,10 +466,10 @@ export default function QuizPage() {
         </div>
 
         {/* 剩余题目生成状态提示（非阻塞）*/}
-        {generating && isFirst && (
+        {generating && currentIndex < 2 && (
           <div className="mt-4 flex items-center justify-center gap-2 text-xs text-[var(--muted-foreground)]">
             <Loader2 className="size-3.5 animate-spin text-[var(--blue-500)]" />
-            <span>正在为你定制剩余 7 道题，请先答第 1 题…</span>
+            <span>正在为你个性化定制后 6 道题，可先答前 2 题…</span>
           </div>
         )}
         {generatedError && !generating && (
@@ -483,7 +483,7 @@ export default function QuizPage() {
               size="sm"
               variant="outline"
               className="h-8 text-xs"
-              onClick={() => formData && currentQ && void fetchGenerated(formData, questions[0])}
+              onClick={() => formData && void fetchGenerated(formData, questions.slice(0, 2))}
             >
               重新生成
             </Button>

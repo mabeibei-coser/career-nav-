@@ -26,6 +26,32 @@
           "weights": { "communication": 0.9, "stress": 0.5 }
         }
       ]
+    },
+    {
+      "id": "SJT-02",
+      "text": "你被要求独自向一个从未接触过该项目的客户做简报，时间只有 15 分钟。你会怎么准备？",
+      "options": [
+        {
+          "label": "A",
+          "text": "收集所有项目资料，每个细节都准备好，宁可材料太多",
+          "weights": { "data": 0.8, "execution": 0.5 }
+        },
+        {
+          "label": "B",
+          "text": "先弄清楚客户最关心的 2-3 个问题，专注把这几点说清楚",
+          "weights": { "communication": 1.0, "execution": 0.6 }
+        },
+        {
+          "label": "C",
+          "text": "找项目组同事帮忙补充我不熟悉的部分，合作准备",
+          "weights": { "collaboration": 0.9, "communication": 0.5 }
+        },
+        {
+          "label": "D",
+          "text": "提前预演一遍，计时，确保 15 分钟内能把核心讲完",
+          "weights": { "execution": 1.0, "stress": 0.4 }
+        }
+      ]
     }
   ]
 }

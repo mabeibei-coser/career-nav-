@@ -5,18 +5,9 @@
 import { callWithFallback } from "@/lib/report-shared";
 import type { JobFormData, QuizQuestion, AbilityKey } from "@/lib/types";
 
-// ===== 7 道兜底 SJT 题（LLM 失败 / E2E Mock 时使用）=====
+// ===== 6 道兜底 SJT 题（LLM 失败 / E2E Mock 时使用）=====
+// SJT-01 和 SJT-02 已作为固定题目存放在 data/quiz-bank.json 的 fixedQuestions 中
 export const FALLBACK_GENERATED: QuizQuestion[] = [
-  {
-    id: "SJT-02",
-    text: "你被要求独自向一个从未接触过该项目的客户做简报，时间只有 15 分钟。你会怎么准备？",
-    options: [
-      { label: "A", text: "收集所有项目资料，每个细节都准备好，宁可材料太多", weights: { data: 0.8, execution: 0.5 } },
-      { label: "B", text: "先弄清楚客户最关心的 2-3 个问题，专注把这几点说清楚", weights: { communication: 1.0, execution: 0.6 } },
-      { label: "C", text: "找项目组同事帮忙补充我不熟悉的部分，合作准备", weights: { collaboration: 0.9, communication: 0.5 } },
-      { label: "D", text: "提前预演一遍，计时，确保 15 分钟内能把核心讲完", weights: { execution: 1.0, stress: 0.4 } },
-    ],
-  },
   {
     id: "SJT-03",
     text: "手头同时有三项任务，截止日期都在本周。你会怎么安排？",
@@ -93,9 +84,9 @@ interface LLMGeneratedBank {
 
 function validateGeneratedQuestions(data: LLMGeneratedBank): string | null {
   if (!data || !Array.isArray(data.questions)) return "questions 字段缺失";
-  if (data.questions.length !== 7)
-    return `questions 长度应为 7，实际 ${data.questions.length}`;
-  for (let i = 0; i < 7; i++) {
+  if (data.questions.length !== 6)
+    return `questions 长度应为 6，实际 ${data.questions.length}`;
+  for (let i = 0; i < 6; i++) {
     const q = data.questions[i];
     if (!q || typeof q.text !== "string" || q.text.trim().length < 10)
       return `questions[${i}].text 无效`;
@@ -121,7 +112,7 @@ function validateGeneratedQuestions(data: LLMGeneratedBank): string | null {
 
 function normalizeGeneratedQuestions(data: LLMGeneratedBank): QuizQuestion[] {
   return data.questions.map((q, i) => ({
-    id: `SJT-0${i + 2}`, // SJT-02 to SJT-08
+    id: `SJT-0${i + 3}`, // SJT-03 to SJT-08
     text: q.text.trim(),
     options: (["A", "B", "C", "D"] as const).map((label) => {
       const opt = q.options.find((o) => o.label === label)!;
@@ -153,9 +144,9 @@ export async function generateSJTQuestions(
 
   const systemPrompt = `你是职业测评专家，设计情境判断题（SJT）。
 
-任务：根据求职者背景生成 7 道职场情境判断题（id: SJT-02 到 SJT-08），每题 4 个选项（A/B/C/D）。
+任务：根据求职者背景生成 6 道职场情境判断题（id: SJT-03 到 SJT-08），每题 4 个选项（A/B/C/D）。
 
-7 道题需要覆盖全部 6 个能力维度（每个维度至少在 2 道题中作为主要权重出现）：
+6 道题需要覆盖全部 6 个能力维度（每个维度至少在 2 道题中作为主要权重出现）：
 - communication（沟通表达）
 - collaboration（协作意识）
 - execution（执行落地）
@@ -170,7 +161,7 @@ export async function generateSJTQuestions(
 - 4 个选项合计覆盖至少 3 个不同能力维度
 
 【输出 JSON 格式（严格遵守，不得有任何 JSON 之外的内容）】
-{"questions":[{"id":"SJT-02","text":"...","options":[{"label":"A","text":"...","weights":{"communication":0.8}},{"label":"B","text":"...","weights":{"execution":1.0,"learning":0.4}},{"label":"C","text":"...","weights":{"collaboration":0.9}},{"label":"D","text":"...","weights":{"data":0.7,"stress":0.5}}]},/* 共7题 */]}`;
+{"questions":[{"id":"SJT-03","text":"...","options":[{"label":"A","text":"...","weights":{"communication":0.8}},{"label":"B","text":"...","weights":{"execution":1.0,"learning":0.4}},{"label":"C","text":"...","weights":{"collaboration":0.9}},{"label":"D","text":"...","weights":{"data":0.7,"stress":0.5}}]},/* 共6题 */]}`;
 
   const userPrompt = `求职者背景：
 - 身份：${identityLabel}
@@ -178,16 +169,16 @@ export async function generateSJTQuestions(
 - 工作年限：${formData.workYears ?? "未知"}
 - 目标岗位：${formData.targetPosition?.trim() || "未指定"}
 
-请根据上述背景生成 7 道情境判断题（SJT-02 至 SJT-08）。
+请根据上述背景生成 6 道情境判断题（SJT-03 至 SJT-08）。
 要求：
 1. ${contextHint}
-2. 7 道题覆盖全部 6 个能力维度（communication/collaboration/execution/learning/data/stress）
-3. 输出合法 JSON（包含 questions 数组，共 7 题，每题 4 个选项 A-D）`;
+2. 6 道题覆盖全部 6 个能力维度（communication/collaboration/execution/learning/data/stress）
+3. 输出合法 JSON（包含 questions 数组，共 6 题，每题 4 个选项 A-D）`;
 
   const result = await callWithFallback<LLMGeneratedBank>({
     systemPrompt,
     userPrompt,
-    maxTokens: 3000,
+    maxTokens: 2500,
     temperature: 0.7,
     timeoutMs: 25_000,
     validator: validateGeneratedQuestions,
