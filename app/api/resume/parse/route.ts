@@ -1,0 +1,167 @@
+import { NextRequest, NextResponse } from "next/server";
+import fs from "fs";
+import path from "path";
+import { randomUUID } from "crypto";
+
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
+const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+const ALLOWED_MIMES = new Set([
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/msword",
+]);
+
+function sanitizeFilename(raw: string): string {
+  return (
+    raw
+      .replace(/[/\\<>:"|?*\x00-\x1f]/g, "_")
+      .replace(/^\.+/, "_")
+      .slice(0, 200) || "resume"
+  );
+}
+
+function cleanText(raw: string): string {
+  return raw
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function truncate(text: string, maxChars = 8000): string {
+  if (text.length <= maxChars) return text;
+  const headLen = 5000;
+  const tailLen = 3000;
+  return (
+    text.slice(0, headLen) +
+    "\n\n...(中间内容已省略)...\n\n" +
+    text.slice(-tailLen)
+  );
+}
+
+async function parsePdf(buffer: Buffer): Promise<string> {
+  const { PDFParse } = await import("pdf-parse");
+  const parser = new PDFParse({ data: new Uint8Array(buffer) });
+  try {
+    const result = await parser.getText();
+    return result.text ?? "";
+  } finally {
+    await parser.destroy();
+  }
+}
+
+async function parseDocx(buffer: Buffer): Promise<string> {
+  const mammoth = (await import("mammoth")).default;
+  const result = await mammoth.extractRawText({ buffer });
+  return result.value ?? "";
+}
+
+export async function POST(req: NextRequest) {
+  // E2E mock: skip actual file parsing, return fixture resume text
+  if (process.env.E2E_MOCK_MODE === "true") {
+    return NextResponse.json({
+      text: "应届生模拟简历。产品经理方向，曾在某科技公司完成三个月产品运营实习，参与用户调研和需求分析，独立输出 PRD 文档三份。熟悉 Axure 原型设计，有 Python 数据处理基础。在学生会任职期间负责活动策划，组织了三次百人规模的校园活动，具备较强的项目协调能力。",
+      fileName: "test-resume.pdf",
+      charCount: 128,
+      truncated: false,
+      resumeRef: "e2e-mock-resume-ref",
+      resumeFilename: "test-resume.pdf",
+    });
+  }
+  try {
+    const formData = await req.formData();
+    const file = formData.get("file");
+
+    if (!file || !(file instanceof File)) {
+      return NextResponse.json({ error: "未检测到上传文件" }, { status: 400 });
+    }
+
+    if (file.size > MAX_SIZE) {
+      return NextResponse.json(
+        { error: "文件过大，请上传不超过 5MB 的文件" },
+        { status: 413 }
+      );
+    }
+
+    const fileName = file.name.toLowerCase();
+    const isPdf = file.type === "application/pdf" || fileName.endsWith(".pdf");
+    const isDocx = fileName.endsWith(".docx");
+    const isDoc = fileName.endsWith(".doc") && !isDocx;
+
+    if (isDoc) {
+      return NextResponse.json(
+        { error: "暂不支持老版 .doc 格式，请转换为 .docx 或 PDF 后上传" },
+        { status: 415 }
+      );
+    }
+
+    if (!isPdf && !isDocx && !ALLOWED_MIMES.has(file.type)) {
+      return NextResponse.json(
+        { error: "仅支持 PDF 和 Word (.docx) 格式" },
+        { status: 415 }
+      );
+    }
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+    let rawText = "";
+
+    if (isPdf) {
+      rawText = await parsePdf(buffer);
+    } else {
+      rawText = await parseDocx(buffer);
+    }
+
+    const cleaned = cleanText(rawText);
+
+    if (cleaned.length < 50) {
+      return NextResponse.json(
+        {
+          error:
+            "无法从文件中提取到足够内容，可能是扫描件 PDF 或空文档；请改用文字版简历",
+        },
+        { status: 422 }
+      );
+    }
+
+    const text = truncate(cleaned);
+
+    const tempId = randomUUID();
+    const cleanName = sanitizeFilename(file.name);
+    const tempDir = path.join(process.cwd(), "data", "temp", tempId);
+    fs.mkdirSync(tempDir, { recursive: true });
+    fs.writeFileSync(path.join(tempDir, cleanName), buffer);
+
+    return NextResponse.json({
+      text,
+      fileName: file.name,
+      charCount: cleaned.length,
+      truncated: cleaned.length > text.length,
+      resumeRef: tempId,
+      resumeFilename: cleanName,
+    });
+  } catch (error: unknown) {
+    console.error("Resume parse error:", error);
+    const message =
+      error instanceof Error ? error.message : "简历解析失败";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export function cleanupOldTemp(maxAgeMs = 30 * 60 * 1000): void {
+  const tempDir = path.join(process.cwd(), "data", "temp");
+  if (!fs.existsSync(tempDir)) return;
+  const now = Date.now();
+  for (const entry of fs.readdirSync(tempDir)) {
+    const entryPath = path.join(tempDir, entry);
+    try {
+      const stat = fs.statSync(entryPath);
+      if (now - stat.mtimeMs > maxAgeMs) {
+        fs.rmSync(entryPath, { recursive: true, force: true });
+      }
+    } catch {
+      // ignore
+    }
+  }
+}

@@ -1,0 +1,91 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# env files
+.env.local
+.env*.local
+
+# claude agent worktree metadata
+/.claude/
+
+# stray local files
+fromfile.bin
+pdf-sample.pdf
+pdf-test-payload.json
+
+# 本地测试临时文件
+_test_out/
+_test_payload.json
+scripts/test*.mp3
+scripts/tts_*.json
+scripts/tts_body.json
+scripts/test-volc-*.mjs
+scripts/test-custom-server.mjs
+orb-samples/
+
+# secrets / 密钥防护（2026-04 曾发生 SSH key 被误复制到仓库根目录）
+*.key
+id_rsa*
+id_ed25519*
+tencent_key*
+.ssh/
+**/.ssh/
+# Windows 路径在 Git Bash 里被错误解析时留下的残片（如 "C:Users..."）
+C\:*
+
+# admin data (DB + files, keep directory structure but not content)
+/data/*
+!/data/.gitkeep
+!/data/reports/
+/data/reports/*
+!/data/reports/.gitkeep
+!/data/resumes/
+/data/resumes/*
+!/data/resumes/.gitkeep
+!/data/temp/
+/data/temp/*
+!/data/temp/.gitkeep
+
+# playwright
+playwright-report/
+test-results/
+e2e/fixtures/.tmp-*
