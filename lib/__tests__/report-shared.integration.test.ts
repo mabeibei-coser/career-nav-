@@ -24,16 +24,16 @@ describe("buildBaseContext", () => {
     expect(ctx).toContain("【素材声明】");
   });
 
-  it("identity=recent_grad 显式说明为离校未就业", () => {
+  it("identity=recent_grad 显式说明为应届毕业生", () => {
     const ctx = buildBaseContext(baseFormData);
-    expect(ctx).toContain("离校未就业");
-    expect(ctx).not.toContain("一般失业人员");
+    expect(ctx).toContain("应届毕业生");
+    expect(ctx).not.toContain("35岁以上求职者");
   });
 
-  it("identity=general_unemployed 显式说明为一般失业人员", () => {
+  it("identity=general_unemployed 显式说明为35岁以上求职者", () => {
     const ctx = buildBaseContext({ ...baseFormData, identity: "general_unemployed" });
-    expect(ctx).toContain("一般失业人员");
-    expect(ctx).not.toContain("离校未就业");
+    expect(ctx).toContain("35岁以上求职者");
+    expect(ctx).not.toContain("应届毕业生");
   });
 
   it("不含旧字段 targetCompany / targetCityTier", () => {

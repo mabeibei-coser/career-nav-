@@ -64,7 +64,7 @@ ${APPLICANT_BASELINE}
 
 【硬约束】
 - 严禁出现 MBTI / 大五 / 霍兰德 / 职业兴趣测验等专有名词
-- 描述用户身份：recent_grad（离校未就业）/ young_unemployed（35岁以下失业青年）/ general_unemployed（一般失业人员），措辞要贴合身份；失业类身份不要嘲讽空白期
+- 描述用户身份：recent_grad（应届毕业生）/ young_unemployed（35岁以下求职者）/ general_unemployed（35岁以上求职者），措辞要贴合身份；非应届求职者不要嘲讽空白期或就业经历
 - fourDimRadar 的 score 必须照搬入参，不要 LLM 重算
 - 输出必须是合法 JSON，字段名严格匹配下方 schema
 

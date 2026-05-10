@@ -313,10 +313,10 @@ export default function ReportPage() {
   const hasResume = meta.hasResume;
   const identityLabel =
     meta.formData.identity === "recent_grad"
-      ? "离校未就业"
+      ? "应届毕业生"
       : meta.formData.identity === "young_unemployed"
-        ? "35岁以下失业青年"
-        : "一般失业人员";
+        ? "35岁以下求职者"
+        : "35岁以上求职者";
 
   // 装配 ReportData（用于 ExportActions / PDF 导出，可能含 mock）
   const composedReport: ReportData = {

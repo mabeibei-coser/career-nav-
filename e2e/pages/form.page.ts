@@ -14,9 +14,9 @@ export interface FormData {
 }
 
 const IDENTITY_LABELS: Record<FormData["identity"], string> = {
-  recent_grad: "离校未就业",
-  young_unemployed: "35岁以下失业青年",
-  general_unemployed: "一般失业人员",
+  recent_grad: "应届毕业生",
+  young_unemployed: "35岁以下求职者",
+  general_unemployed: "35岁以上求职者",
 };
 
 const EDUCATION_LABELS: Record<string, string> = {

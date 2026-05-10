@@ -139,7 +139,7 @@ export default function FormPage() {
       <div className="fixed top-20 -right-32 w-96 h-96 rounded-full bg-gradient-to-br from-[var(--blue-200)] to-[var(--blue-100)] opacity-40 blur-3xl" />
       <div className="fixed -bottom-20 -left-32 w-80 h-80 rounded-full bg-gradient-to-tr from-[var(--blue-300)] to-[var(--blue-100)] opacity-30 blur-3xl" />
 
-      <div className="relative z-10 max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-12 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:pb-[max(2rem,env(safe-area-inset-bottom))]">
+      <div className="relative z-10 max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-12 pb-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -464,33 +464,29 @@ export default function FormPage() {
             transition={{ duration: 0.5, delay: 0.5, ease: cubicEase }}
             className="pt-2 sm:pt-4"
           >
-            <div className="sm:static fixed bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-white via-white/95 to-white/0 sm:bg-none px-4 sm:px-0 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pt-0 sm:pb-0">
-              <div className="max-w-2xl mx-auto sm:max-w-none">
-                <Button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full h-12 text-base font-medium bg-[var(--navy-900)] hover:bg-[var(--navy-800)] text-white rounded-xl btn-glow transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  <span className="flex items-center gap-2">
-                    {isSubmitting ? "提交中…" : "下一步"}
-                    {!isSubmitting && (
-                      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                        <path
-                          d="M6.5 4L12 9l-5.5 5"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    )}
-                  </span>
-                </Button>
-                <p className="text-center text-xs text-[var(--muted-foreground)] mt-3 sm:mt-4">
-                  信息仅用于本次报告生成，不会存储或分享给第三方
-                </p>
-              </div>
-            </div>
+            <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full h-12 text-base font-medium bg-[var(--navy-900)] hover:bg-[var(--navy-800)] text-white rounded-xl btn-glow transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <span className="flex items-center gap-2">
+                  {isSubmitting ? "提交中…" : "下一步"}
+                  {!isSubmitting && (
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                      <path
+                        d="M6.5 4L12 9l-5.5 5"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  )}
+                </span>
+              </Button>
+              <p className="text-center text-xs text-[var(--muted-foreground)] mt-3 sm:mt-4">
+                信息仅用于本次报告生成，不会存储或分享给第三方
+              </p>
           </motion.div>
         </form>
       </div>

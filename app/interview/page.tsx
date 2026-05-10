@@ -123,9 +123,21 @@ export default function InterviewPage() {
   const recorder = useAudioRecorder();
   const { amplitude } = useAudioVisualizer(recorder.mediaStream);
 
-  // TTS 播放（AI 读题）
+  // TTS 播放（AI 读题 + 问候语）
   const speakingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 问候语音频（后台预合成，点击"开始访谈"后播放）
+  const greetingAudioRef = useRef<string | null>(null);
+  // 问候语播放结束后要执行的回调（用 ref 避免 handlePlayerEnded → presentQuestion 循环依赖）
+  const afterGreetingRef = useRef<(() => void) | null>(null);
+
   const handlePlayerEnded = useCallback(() => {
+    // 问候语结束：执行预设回调（进入 Q1）
+    if (afterGreetingRef.current) {
+      const cb = afterGreetingRef.current;
+      afterGreetingRef.current = null;
+      cb();
+      return;
+    }
     if (phaseRef.current === "speaking-q") {
       setPhaseSync("ready");
     }
@@ -186,6 +198,19 @@ export default function InterviewPage() {
     }
 
     setPhaseSync("greeting");
+
+    // 后台预合成问候语语音，用户点"开始访谈"时播放
+    const BASE_PATH_GREET = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+    fetch(`${BASE_PATH_GREET}/api/interview/tts`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: GREETING_TEXT }),
+    })
+      .then((r) => r.json() as Promise<{ audioBase64?: string }>)
+      .then((data) => {
+        if (data?.audioBase64) greetingAudioRef.current = data.audioBase64;
+      })
+      .catch(() => {}); // 失败静默降级，不影响主流程
 
     // 阶段 1：拉 Q1Q2（API 动态生成）
     (async () => {
@@ -316,14 +341,27 @@ export default function InterviewPage() {
       // 权限被拒 → 后续按住录音时 catch 会降级到文字模式
     }
 
-    if (questionsRef.current.length < TOTAL_QUESTIONS) {
-      // 还没拉到题 → 进 loading-q 等待 effect 推进（不轮询，避免闭包陷阱）
-      setPhaseSync("loading-q");
+    // 进入 Q1 的逻辑（问候语结束后 or 无问候语时直接调用）
+    const proceedToQ1 = () => {
+      if (questionsRef.current.length < TOTAL_QUESTIONS) {
+        // 还没拉到题 → 进 loading-q 等待 effect 推进
+        setPhaseSync("loading-q");
+        return;
+      }
+      setCurrentIndex(0);
+      presentQuestion(questionsRef.current[0]);
+    };
+
+    // 如果问候语音频已准备好，先播放问候语再进入 Q1
+    if (greetingAudioRef.current) {
+      afterGreetingRef.current = proceedToQ1;
+      player.play(greetingAudioRef.current);
       return;
     }
-    setCurrentIndex(0);
-    presentQuestion(questionsRef.current[0]);
-  }, [setPhaseSync, presentQuestion]);
+
+    // 问候语音频尚未就绪（TTS 还在请求中）→ 直接进 Q1（降级）
+    proceedToQ1();
+  }, [setPhaseSync, presentQuestion, player]);
 
   // 题目就绪后，如果当前还在 loading-q，自动朗读第一题
   useEffect(() => {

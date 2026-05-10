@@ -141,10 +141,10 @@ export async function generateSJTQuestions(
   const identity = formData.identity ?? "general_unemployed";
   const identityLabel =
     identity === "recent_grad"
-      ? "离校未就业"
+      ? "应届毕业生"
       : identity === "young_unemployed"
-        ? "35岁以下失业青年"
-        : "一般失业人员";
+        ? "35岁以下求职者"
+        : "35岁以上求职者";
 
   const contextHint =
     identity === "recent_grad"
