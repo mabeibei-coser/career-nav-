@@ -66,6 +66,10 @@ export default function QuizPage() {
   const [generatedError, setGeneratedError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const autoNextTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** 追踪当前题目索引供 timer 回调读取（避免闭包旧值） */
+  const currentIdxRef = useRef(0);
+  /** 后台个性化题轮询 timer */
+  const personalizationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /**
    * 分两阶段拉题：
@@ -164,6 +168,62 @@ export default function QuizPage() {
       // 2. 消费 form 提交时已预触发的 Promise（Layer 3），或新建 fetch
       const prefetchPromise = consumeQuizPrefetch(fd) ?? undefined;
       void fetchGenerated(fd, fixedQs, prefetchPromise);
+
+      // 3. 后台静默等待个性化题（有目标岗位时才启动）
+      // 服务端在步骤 2 返回通用题的同时，已经开始后台生成个性化题。
+      // 约 30-60s 后轮询：若个性化已生成，则静默替换用户「当前题」之后的所有题，
+      // 用户感知不到切换——他们还没看到那些题。
+      if (fd.targetPosition?.trim()) {
+        const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+        let retryCount = 0;
+        const MAX_RETRIES = 3; // 最多重试 3 次（覆盖最慢 ~120s 生成场景）
+
+        const pollPersonalized = async () => {
+          try {
+            const res = await fetch(`${BASE}/api/quiz/bank/generated`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ formData: fd }),
+              cache: "no-store",
+            });
+            if (!res.ok) return;
+            const data = (await res.json()) as { questions?: QuizQuestion[] };
+            const personalized = data?.questions ?? [];
+            if (!Array.isArray(personalized) || personalized.length < 6) return;
+
+            setQuestions(prev => {
+              if (prev.length < EXPECTED_TOTAL) return prev; // 题目未完整加载，跳过
+              const currentGenerated = prev.slice(2); // 当前 Q3-Q8
+              // 检测是否已切换为个性化版本（题目文本不同）
+              const isDifferent = personalized.some(
+                (q, i) => q.text !== currentGenerated[i]?.text,
+              );
+              if (!isDifferent) {
+                // 仍是通用题，安排重试
+                retryCount++;
+                if (retryCount < MAX_RETRIES) {
+                  personalizationTimerRef.current = setTimeout(pollPersonalized, 30_000);
+                }
+                return prev;
+              }
+              // 个性化题就绪：从「当前题 + 1」开始静默替换（不动已在读的题）
+              const replaceFrom = Math.max(currentIdxRef.current + 1, 2);
+              if (replaceFrom >= EXPECTED_TOTAL) return prev; // 用户已答完全部题
+              const updated = [...prev];
+              for (let i = replaceFrom; i < EXPECTED_TOTAL; i++) {
+                const p = personalized[i - 2];
+                if (p) updated[i] = p;
+              }
+              return updated;
+            });
+          } catch {
+            // 静默失败，用户继续使用通用题，不影响流程
+          }
+        };
+
+        // 30s 后首次轮询（服务端个性化生成典型耗时 20-60s）
+        personalizationTimerRef.current = setTimeout(pollPersonalized, 30_000);
+      }
     },
     [fetchGenerated],
   );
@@ -185,10 +245,16 @@ export default function QuizPage() {
     void fetchBank(fd);
   }, [router, fetchBank]);
 
-  // 卸载时清掉自动跳题定时器
+  // 同步 currentIndex → ref（供 timer 回调读取最新值）
+  useEffect(() => {
+    currentIdxRef.current = currentIndex;
+  }, [currentIndex]);
+
+  // 卸载时清掉 timer
   useEffect(() => {
     return () => {
       if (autoNextTimerRef.current) clearTimeout(autoNextTimerRef.current);
+      if (personalizationTimerRef.current) clearTimeout(personalizationTimerRef.current);
     };
   }, []);
 
