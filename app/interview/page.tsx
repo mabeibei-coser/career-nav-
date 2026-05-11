@@ -75,14 +75,16 @@ function buildRawAnswersSummary(answers: InterviewAnswer[]): string {
 
 function unlockAudio() {
   try {
-    // 播放一段极短静音 MP3，触发 iOS/WebKit 对 AudioContext 的授权
+    // 播放一段极短静音 MP3，触发 iOS/WebKit 对 AudioContext 的授权，
+    // 同时激活 Android MediaSession（防止首次播放音量偏低）。
+    // 不调用 .pause()，让它自然播完（约 0.05s），确保媒体会话充分初始化。
     const a = new Audio(
       "data:audio/mp3;base64,//uQxAAAAAAAAAAAAAAAAAAAAAAAWGluZgAAAA8AAAACAAACcQCA",
     );
+    a.volume = 1.0;
     a.play().catch(() => {});
-    a.pause();
   } catch {
-    // 降级：忽略（非 iOS 设备不影响）
+    // 降级：忽略（非 iOS/Android 环境不影响）
   }
 }
 
@@ -203,6 +205,10 @@ export default function InterviewPage() {
 
     setPhaseSync("greeting");
 
+    // 提前预热音频会话（部分 Android 设备首次 audio.play 音量偏低；
+    // 在这里先触发一次静音播放，让 MediaSession 在问候语开始前初始化）
+    unlockAudio();
+
     // 后台预合成问候语语音，用户点"开始访谈"时播放
     const BASE_PATH_GREET = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
     fetch(`${BASE_PATH_GREET}/api/interview/tts`, {
@@ -317,7 +323,6 @@ export default function InterviewPage() {
   );
 
   // ---------- 问候语 TTS 就绪时自动播放（无需用户点击按钮） ----------
-  // presentQuestion 和 player 在此 effect 之前已声明，所以可以安全引用
 
   useEffect(() => {
     if (!greetingTTSReady || phaseRef.current !== "greeting") return;
@@ -327,16 +332,13 @@ export default function InterviewPage() {
     setGreetingPlaying(true);
     afterGreetingRef.current = () => {
       setGreetingPlaying(false);
-      // 问候语结束后自动进入 Q1
-      if (questionsRef.current.length < TOTAL_QUESTIONS) {
-        setPhaseSync("loading-q");
-      } else {
-        setCurrentIndex(0);
-        presentQuestion(questionsRef.current[0]);
-      }
+      // 问候语结束 → 仅还原状态，等用户点"准备好了，开始访谈"按钮。
+      // greetingAudioRef 清空，防止用户点击时重播一遍。
+      // getUserMedia 必须在用户手势里调用，由 handleStart 负责。
+      greetingAudioRef.current = null;
     };
     player.play(audio);
-  }, [greetingTTSReady, presentQuestion, player, setPhaseSync]);
+  }, [greetingTTSReady, player]);
 
   // ---------- 进入下一题 ----------
 
@@ -357,23 +359,22 @@ export default function InterviewPage() {
   // ---------- 开始访谈：从 greeting 进入 Q1 ----------
 
   const handleStart = useCallback(async () => {
-    // iOS AudioContext 解锁必须在用户手势里执行
+    // iOS AudioContext 解锁必须在用户手势里执行（这里是用户点击"准备好了"的手势）
     unlockAudio();
-    // 预请求麦克风权限：在用户手势上下文里提前拿授权，
-    // 后面按住录音时 getUserMedia 就秒返回，不会弹权限弹窗导致时序错乱
-    try {
-      const preStream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-      });
-      preStream.getTracks().forEach((t) => t.stop()); // 拿到权限后立即释放
-    } catch {
-      // 权限被拒 → 后续按住录音时 catch 会降级到文字模式
-    }
 
-    // 进入 Q1 的逻辑（问候语结束后 or 无问候语时直接调用）
-    const proceedToQ1 = () => {
+    // 进入 Q1：先弹麦克风授权弹窗（在用户手势上下文里），再开始读题
+    const proceedToQ1 = async () => {
+      // getUserMedia 必须在用户手势上下文里调用，才能在问候语页面触发授权弹窗；
+      // 若放在 greeting 自动结束回调里调用，则弹窗会出现在 Q1 页面（时序错乱）
+      try {
+        const preStream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        });
+        preStream.getTracks().forEach((t) => t.stop()); // 拿到权限后立即释放
+      } catch {
+        // 权限被拒 → 后续按住录音时 catch 会降级到文字模式
+      }
       if (questionsRef.current.length < TOTAL_QUESTIONS) {
-        // 还没拉到题 → 进 loading-q 等待 effect 推进
         setPhaseSync("loading-q");
         return;
       }
@@ -384,19 +385,21 @@ export default function InterviewPage() {
     // 如果问候语正在自动播放（auto-play effect 已触发），忽略重复点击
     if (greetingPlaying) return;
 
-    // 如果问候语音频已准备好但尚未播放，先播放问候语再进入 Q1
+    // race 情况：TTS 返回快、auto-play effect 还没触发 → greetingAudioRef 非空
+    // 先在用户手势里把问候语播完，再申请麦克风
     if (greetingAudioRef.current) {
       setGreetingPlaying(true);
       afterGreetingRef.current = () => {
         setGreetingPlaying(false);
-        proceedToQ1();
+        greetingAudioRef.current = null;
+        void proceedToQ1();
       };
       player.play(greetingAudioRef.current);
       return;
     }
 
-    // 音频尚未就绪（TTS 还在请求中）→ 直接进 Q1（降级）
-    proceedToQ1();
+    // 问候语已播过（greetingAudioRef 已清空）or TTS 尚未返回 → 直接申请麦克风并进 Q1
+    await proceedToQ1();
   }, [setPhaseSync, presentQuestion, player, greetingPlaying]);
 
   // 题目就绪后，如果当前还在 loading-q，自动朗读第一题

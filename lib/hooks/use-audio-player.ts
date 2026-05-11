@@ -47,6 +47,7 @@ export function useAudioPlayer(onEnded?: () => void): UseAudioPlayerReturn {
         /^\/[a-zA-Z0-9]/.test(audioSrc); // /api/... or /audio/... (not // prefix)
       const src = isUrl ? audioSrc : "data:audio/mp3;base64," + audioSrc;
       const audio = new Audio(src);
+      audio.volume = 1.0; // 显式 100% 音量，防止 MediaSession 首次激活时音量偏低
 
       audio.onended = () => {
         setIsPlaying(false);
