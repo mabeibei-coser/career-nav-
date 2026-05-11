@@ -9,6 +9,7 @@ import { StepIndicator } from "@/components/ui/step-indicator";
 import { cn } from "@/lib/utils";
 import { scoreQuiz } from "@/lib/scoring";
 // report-bg-runner：报告生成已改为 Q3 答完后统一触发，quiz 不再预热
+import { consumeQuizPrefetch } from "@/lib/quiz-prefetch";
 import type { JobFormData, QuizAnswer, QuizQuestion } from "@/lib/types";
 
 const cubicEase: [number, number, number, number] = [0.22, 1, 0.36, 1];
@@ -69,33 +70,47 @@ export default function QuizPage() {
   /**
    * 分两阶段拉题：
    * 1. GET /api/quiz/bank/q1 → 毫秒级拿固定 SJT-01 + SJT-02 立即显示
-   * 2. POST /api/quiz/bank/generated → 后台 LLM 个性化生成 SJT-03 到 SJT-08（6 题）
+   * 2. 消费 form 提交时已预触发的 Promise（Layer 3 优化），
+   *    或若无预触发则 POST /api/quiz/bank/generated（LLM 生成 SJT-03-08）
    *
    * 用户在做前 2 题时 LLM 在后台生成，有效消除白屏等待。
    */
-  const fetchGenerated = useCallback(async (fd: JobFormData, fixedQs: QuizQuestion[]) => {
+  const fetchGenerated = useCallback(async (
+    fd: JobFormData,
+    fixedQs: QuizQuestion[],
+    existingPromise?: Promise<QuizQuestion[]>,
+  ) => {
     setGenerating(true);
     setGeneratedError(null);
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/quiz/bank/generated`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ formData: fd }),
-          cache: "no-store",
-        },
-      );
-      if (!res.ok) {
-        let msg = `剩余题目生成失败（HTTP ${res.status}）`;
-        try {
-          const data = await res.json();
-          if (data?.errorMessage) msg = data.errorMessage;
-        } catch {}
-        throw new Error(msg);
+      let generated: QuizQuestion[];
+
+      if (existingPromise) {
+        // 直接消费 form 提交时已在途的 Promise（可能已 resolve，即时返回）
+        generated = await existingPromise;
+      } else {
+        // 无预触发时走常规 fetch
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/quiz/bank/generated`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ formData: fd }),
+            cache: "no-store",
+          },
+        );
+        if (!res.ok) {
+          let msg = `剩余题目生成失败（HTTP ${res.status}）`;
+          try {
+            const d = await res.json();
+            if (d?.errorMessage) msg = d.errorMessage;
+          } catch {}
+          throw new Error(msg);
+        }
+        const data = await res.json();
+        generated = (data?.questions ?? []) as QuizQuestion[];
       }
-      const data = await res.json();
-      const generated = (data?.questions ?? []) as QuizQuestion[];
+
       if (!Array.isArray(generated) || generated.length === 0) {
         throw new Error("剩余题目返回为空");
       }
@@ -146,8 +161,9 @@ export default function QuizPage() {
       } catch {}
       setLoading(false);
 
-      // 2. 后台 LLM 个性化生成 SJT-03 到 SJT-08（不阻塞 UI，用户可先答前 2 题）
-      void fetchGenerated(fd, fixedQs);
+      // 2. 消费 form 提交时已预触发的 Promise（Layer 3），或新建 fetch
+      const prefetchPromise = consumeQuizPrefetch(fd) ?? undefined;
+      void fetchGenerated(fd, fixedQs, prefetchPromise);
     },
     [fetchGenerated],
   );

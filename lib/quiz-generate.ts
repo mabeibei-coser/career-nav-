@@ -1,6 +1,10 @@
 /**
- * SJT Q2-Q8 生成（LLM 调用 + 兜底题）
- * 由 /api/quiz/bank/generated 和旧 /api/quiz/bank 共享
+ * SJT 题目生成（LLM 调用 + 兜底题）
+ * 由 /api/quiz/bank/generated 路由调用。
+ *
+ * LLM 只输出题干 + 选项文本 + 能力维度标签（不输出数值权重）
+ * → 输出 tokens 从 ~2500 降到 ~900，完成时间从 >25s 降到 ~6-10s
+ * → 数值权重由服务端模板映射：primary=1.0，secondary=0.5
  */
 import { callWithFallback } from "@/lib/report-shared";
 import type { JobFormData, QuizQuestion, AbilityKey } from "@/lib/types";
@@ -70,58 +74,62 @@ export const FALLBACK_GENERATED: QuizQuestion[] = [
   },
 ];
 
+// ===== 有效能力维度 =====
 const VALID_ABILITY_KEYS: AbilityKey[] = [
   "communication", "collaboration", "execution", "learning", "data", "stress",
 ];
 
-interface LLMGeneratedBank {
-  questions: {
-    id: string;
-    text: string;
-    options: { label: string; text: string; weights: Record<string, number> }[];
-  }[];
+// ===== LLM 简化输出格式（只输出文本 + 维度标签，不输出数值权重）=====
+interface LLMSimpleOption {
+  label: string;
+  text: string;
+  primary: string;       // 主维度：communication / collaboration / execution / learning / data / stress
+  secondary?: string;    // 副维度（可选）
+}
+interface LLMSimpleQuestion {
+  text: string;
+  options: LLMSimpleOption[];
+}
+interface LLMSimpleBank {
+  questions: LLMSimpleQuestion[];
 }
 
-function validateGeneratedQuestions(data: LLMGeneratedBank): string | null {
+function validateSimpleBank(data: LLMSimpleBank): string | null {
   if (!data || !Array.isArray(data.questions)) return "questions 字段缺失";
-  if (data.questions.length !== 6)
-    return `questions 长度应为 6，实际 ${data.questions.length}`;
+  if (data.questions.length !== 6) return `questions 长度应为 6，实际 ${data.questions.length}`;
+  const validLabels = new Set(["A", "B", "C", "D"]);
   for (let i = 0; i < 6; i++) {
     const q = data.questions[i];
     if (!q || typeof q.text !== "string" || q.text.trim().length < 10)
       return `questions[${i}].text 无效`;
     if (!Array.isArray(q.options) || q.options.length !== 4)
-      return `questions[${i}].options 必须有 4 个选项，实际 ${q.options?.length}`;
-    const labels = new Set(["A", "B", "C", "D"]);
+      return `questions[${i}].options 必须有 4 个，实际 ${q.options?.length}`;
     for (const opt of q.options) {
-      if (!labels.has(opt.label)) return `questions[${i}] 选项 label 非法: ${opt.label}`;
+      if (!validLabels.has(opt.label)) return `questions[${i}] 非法 label: ${opt.label}`;
       if (typeof opt.text !== "string" || opt.text.trim().length < 5)
-        return `questions[${i}] 选项 ${opt.label} text 过短`;
-      if (typeof opt.weights !== "object" || opt.weights === null)
-        return `questions[${i}] 选项 ${opt.label} weights 缺失`;
-      for (const [k, v] of Object.entries(opt.weights)) {
-        if (!VALID_ABILITY_KEYS.includes(k as AbilityKey))
-          return `questions[${i}] 未知 ability key: ${k}`;
-        if (typeof v !== "number" || v < 0 || v > 1)
-          return `questions[${i}].weights.${k}=${v} 超出 [0,1]`;
-      }
+        return `questions[${i}].${opt.label} text 过短`;
+      if (!VALID_ABILITY_KEYS.includes(opt.primary as AbilityKey))
+        return `questions[${i}].${opt.label} primary 无效: "${opt.primary}"`;
     }
   }
   return null;
 }
 
-function normalizeGeneratedQuestions(data: LLMGeneratedBank): QuizQuestion[] {
+/** 模板权重：primary = 1.0，secondary = 0.5 */
+function normalizeSimpleBank(data: LLMSimpleBank): QuizQuestion[] {
   return data.questions.map((q, i) => ({
     id: `SJT-0${i + 3}`, // SJT-03 to SJT-08
     text: q.text.trim(),
     options: (["A", "B", "C", "D"] as const).map((label) => {
       const opt = q.options.find((o) => o.label === label)!;
-      const safeWeights: Partial<Record<AbilityKey, number>> = {};
-      for (const k of VALID_ABILITY_KEYS) {
-        const v = opt.weights[k];
-        if (typeof v === "number" && v > 0) safeWeights[k] = v;
+      const weights: Partial<Record<AbilityKey, number>> = {};
+      if (VALID_ABILITY_KEYS.includes(opt.primary as AbilityKey)) {
+        weights[opt.primary as AbilityKey] = 1.0;
       }
-      return { label, text: opt.text.trim(), weights: safeWeights };
+      if (opt.secondary && VALID_ABILITY_KEYS.includes(opt.secondary as AbilityKey)) {
+        weights[opt.secondary as AbilityKey] = 0.5;
+      }
+      return { label, text: opt.text.trim(), weights };
     }),
   }));
 }
@@ -139,51 +147,41 @@ export async function generateSJTQuestions(
 
   const contextHint =
     identity === "recent_grad"
-      ? "场景可以是学校小组项目、实习、兼职、社团活动、校园求职等"
-      : "场景应为职场情境，如团队协作、任务交接、向上管理、处理数据等";
+      ? "场景偏学校、实习、兼职、社团、校园求职"
+      : "场景偏职场：团队协作、任务交接、向上管理、数据处理等";
 
-  const systemPrompt = `你是职业测评专家，设计情境判断题（SJT）。
+  // 精简 prompt：只要文本 + 维度标签，不要数值权重
+  // 输出 tokens ≈ 900（原来 ≈ 2500），完成时间从 >25s → ~6-10s
+  const systemPrompt = `你是职业测评专家。根据求职者背景生成 6 道情境判断题（SJT）。
 
-任务：根据求职者背景生成 6 道职场情境判断题（id: SJT-03 到 SJT-08），每题 4 个选项（A/B/C/D）。
+【严格输出格式（只输出 JSON，不得有任何其他内容）】
+{"questions":[{"text":"情境描述40-80字","options":[{"label":"A","text":"行为描述20-45字","primary":"execution","secondary":"stress"},{"label":"B","text":"行为描述20-45字","primary":"communication"},{"label":"C","text":"行为描述20-45字","primary":"collaboration"},{"label":"D","text":"行为描述20-45字","primary":"data","secondary":"learning"}]},共6题]}
 
-6 道题需要覆盖全部 6 个能力维度（每个维度至少在 2 道题中作为主要权重出现）：
-- communication（沟通表达）
-- collaboration（协作意识）
-- execution（执行落地）
-- learning（学习能力）
-- data（信息处理）
-- stress（压力适应）
+primary 和 secondary（可选）只能从以下 6 个维度选填：
+communication / collaboration / execution / learning / data / stress
 
-【每道题要求】
-- 情境描述：具体真实，40-80 字，描述明确的职场（或相关）情境
-- 4 个选项（A/B/C/D）：每个 20-45 字，描述真实可能的行为，无评判感
-- 选项权重（weights）：每个选项只写 1-2 个能力 key，权重值 0.4-1.0，可简单用 0.5/0.8/1.0
-- 4 个选项合计覆盖至少 3 个不同能力维度
-
-【输出 JSON 格式（严格遵守，不得有任何 JSON 之外的内容）】
-{"questions":[{"id":"SJT-03","text":"...","options":[{"label":"A","text":"...","weights":{"communication":0.8}},{"label":"B","text":"...","weights":{"execution":1.0,"learning":0.4}},{"label":"C","text":"...","weights":{"collaboration":0.9}},{"label":"D","text":"...","weights":{"data":0.7,"stress":0.5}}]},/* 共6题 */]}`;
+约束：
+- 共 6 道题，每题恰好 4 个选项（A B C D）
+- 6 道题的 primary 合计：每个维度至少出现 1 次
+- secondary 可不填；如果填，必须和 primary 不同`;
 
   const userPrompt = `求职者背景：
-- 身份：${identityLabel}
+- 身份：${identityLabel}（${contextHint}）
 - 学历：${formData.education ?? "未知"}
 - 工作年限：${formData.workYears ?? "未知"}
 - 目标岗位：${formData.targetPosition?.trim() || "未指定"}
 
-请根据上述背景生成 6 道情境判断题（SJT-03 至 SJT-08）。
-要求：
-1. ${contextHint}
-2. 6 道题覆盖全部 6 个能力维度（communication/collaboration/execution/learning/data/stress）
-3. 输出合法 JSON（包含 questions 数组，共 6 题，每题 4 个选项 A-D）`;
+生成 6 道情境判断题，输出合法 JSON。`;
 
-  const result = await callWithFallback<LLMGeneratedBank>({
+  const result = await callWithFallback<LLMSimpleBank>({
     systemPrompt,
     userPrompt,
-    maxTokens: 2500,
+    maxTokens: 1200,
     temperature: 0.7,
-    timeoutMs: 25_000,
-    validator: validateGeneratedQuestions,
+    timeoutMs: 20_000,
+    validator: validateSimpleBank,
     context: "quiz/bank/SJT-generate",
   });
 
-  return normalizeGeneratedQuestions(result);
+  return normalizeSimpleBank(result);
 }
