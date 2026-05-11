@@ -178,7 +178,9 @@ communication / collaboration / execution / learning / data / stress
     userPrompt,
     maxTokens: 1200,
     temperature: 0.7,
-    timeoutMs: 20_000,
+    // deepseek-v4-flash 实测 ~15s 完成；deepseek-chat 反而需要 ~20s（token 多）
+    // 超时从 20s → 30s，给 15s 实际耗时留 15s 的网络抖动余量
+    timeoutMs: 30_000,
     validator: validateSimpleBank,
     context: "quiz/bank/SJT-generate",
   });

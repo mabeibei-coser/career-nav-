@@ -138,6 +138,9 @@ export interface CallOptions {
   userPrompt: string;
   maxTokens?: number;
   temperature?: number;
+  /** 覆盖默认 DeepSeek 模型（默认 DEEPSEEK_MODEL = deepseek-v4-flash）
+   *  测试表明 deepseek-chat 在此任务上比 deepseek-v4-flash 更慢，暂不使用 */
+  deepseekModel?: string;
 }
 
 // 全局 JSON 约束前缀：压制模型的"让我分析一下..."/"用户要求..."等前言
@@ -180,7 +183,7 @@ export async function callDeepseekJson<T>(
     const client = getDeepseekClient();
     const response = await client.chat.completions.create(
       {
-        model: DEEPSEEK_MODEL,
+        model: opts.deepseekModel ?? DEEPSEEK_MODEL,
         messages: [
           { role: "system", content: JSON_ONLY_PREFIX + opts.systemPrompt },
           { role: "user", content: opts.userPrompt },
