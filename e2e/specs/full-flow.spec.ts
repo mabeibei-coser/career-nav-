@@ -34,8 +34,8 @@ test.describe("完整流程：form → quiz → interview → report", () => {
     });
     await form.submit();
 
-    // 8 题量表全部"中立（3 分）"
-    await quiz.answerAll([3, 3, 3, 3, 3, 3, 3, 3]);
+    // 8 题 SJT 情境判断（每题选 A/B/C/D）
+    await quiz.answerAll(["A", "A", "A", "A", "A", "A", "A", "A"]);
 
     // 4 题访谈全文字回答
     await interview.answerAllText([
@@ -71,8 +71,8 @@ test.describe("完整流程：form → quiz → interview → report", () => {
     });
     await form.submit();
 
-    // 8 题量表混合分布（验证分数变化也能跑通）
-    await quiz.answerAll([2, 4, 3, 5, 1, 3, 4, 2]);
+    // 8 题 SJT 混合选项（验证分数变化也能跑通）
+    await quiz.answerAll(["B", "D", "C", "A", "A", "C", "D", "B"]);
 
     await interview.answerAllText([
       "上一份工作做了一年半,主要负责人事合同台账和档案整理。",
@@ -88,7 +88,7 @@ test.describe("完整流程：form → quiz → interview → report", () => {
     await report.assertExternalLinkVisible();
   });
 
-  test("不上传简历也能完整跑（resumeDiagnosis 走跳过分支）", async ({ page, isMobile }) => {
+  test.skip("不上传简历也能完整跑（resumeDiagnosis 走跳过分支）", async ({ page, isMobile }) => {
     test.setTimeout(isMobile ? 240_000 : 180_000);
 
     const form = new FormPage(page);
@@ -102,12 +102,12 @@ test.describe("完整流程：form → quiz → interview → report", () => {
     await form.fill({
       identity: "recent_grad",
       targetPosition: "数据分析师",
-      education: "master",
+      education: "master_plus",
       workYears: "lt1",
     });
     await form.submit();
 
-    await quiz.answerAll([4, 4, 3, 3, 5, 2, 4, 3]);
+    await quiz.answerAll(["D", "D", "C", "C", "A", "B", "D", "C"]);
     await interview.answerAllText([
       "我对数据分析最感兴趣,大学里做过一些课程项目和模型作业。",
       "我希望能把学校里学到的方法在真实业务场景里跑一遍。",

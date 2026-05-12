@@ -9,8 +9,8 @@ export interface FormData {
   education: string;
   /** 工作年限，使用 WORK_YEARS_OPTIONS value：lt1 / 1to3 / 3to10 / gt10 */
   workYears: string;
-  /** 可选：上传简历的文件名（fixture，E2E_MOCK_MODE 下跳过真实解析） */
-  resumeFileName?: string;
+  /** 简历文件名（默认上传 test-resume.pdf；传 null 可跳过上传） */
+  resumeFileName?: string | null;
 }
 
 const IDENTITY_LABELS: Record<FormData["identity"], string> = {
@@ -20,19 +20,18 @@ const IDENTITY_LABELS: Record<FormData["identity"], string> = {
 };
 
 const EDUCATION_LABELS: Record<string, string> = {
-  high_school: "高中及以下",
-  junior_college: "大专",
+  junior_high: "初中及以下",
+  high_school: "高中/中专/技校",
+  junior_college: "高职/大专",
   bachelor: "本科",
-  master: "硕士",
-  phd: "博士",
-  other: "其他",
+  master_plus: "硕士及以上",
 };
 
 const WORK_YEARS_LABELS: Record<string, string> = {
-  lt1: "一年以下",
-  "1to3": "1~3 年",
-  "3to10": "3~10 年",
-  gt10: "10 年以上",
+  lt1: "0-1年（含）",
+  "1to3": "1-3年（含）",
+  "3to10": "3-10年（含）",
+  gt10: "10年以上",
 };
 
 export class FormPage {
@@ -74,9 +73,9 @@ export class FormPage {
       .getByRole("option", { name: workYearsLabel, exact: true })
       .click();
 
-    // 5. 可选简历
-    if (data.resumeFileName) {
-      await this.uploadResume(data.resumeFileName);
+    // 5. 简历（必填；E2E_MOCK_MODE 下 /api/resume/parse 返回 fixture）
+    if (data.resumeFileName !== null) {
+      await this.uploadResume(data.resumeFileName ?? "test-resume.pdf");
     }
   }
 
@@ -95,9 +94,15 @@ export class FormPage {
     await this.page.getByText("已解析").waitFor({ timeout: 15_000 });
   }
 
-  /** 提交表单，等待跳转到 /quiz */
+  /** 提交表单，经过 /preparing → /intro 过渡页后到达 /quiz */
   async submit() {
     await this.page.getByRole("button", { name: "下一步" }).click();
+    // preparing 页自动播完动画后跳 /intro
+    await this.page.waitForURL("**/intro", { timeout: 30_000 });
+    // intro 页需要点"开始测评"按钮
+    const startBtn = this.page.getByRole("button", { name: /开始测评/ });
+    await startBtn.waitFor({ state: "visible", timeout: 15_000 });
+    await startBtn.click();
     await this.page.waitForURL("**/quiz", { timeout: 30_000 });
   }
 }

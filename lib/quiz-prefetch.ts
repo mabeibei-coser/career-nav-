@@ -1,74 +1,143 @@
 /**
- * Quiz 生成预触发单例（客户端专用）
+ * Quiz 流式生成消费者（客户端单例）
  *
- * 在 form/page.tsx onSubmit 时立即发出 POST /api/quiz/bank/generated，
- * 而不是等到 quiz/page.tsx mount 后再发——节省 2-3s 页面过渡时间。
- *
- * quiz/page.tsx 通过 consumeQuizPrefetch() 拿到已在途的 Promise，
- * 直接 await 即可，不会重复发请求。
+ * 在 form 提交时通过 startQuizStream() 开启 SSE 连接到 /api/quiz/stream，
+ * 题目逐道到达时推入 questions 数组并通知订阅者。
+ * quiz/page.tsx 通过 subscribeQuizStream() 实时消费。
  */
 import type { JobFormData, QuizQuestion } from "@/lib/types";
 
-interface PrefetchState {
+interface QuizStreamState {
   formKey: string;
-  promise: Promise<QuizQuestion[]>;
+  questions: QuizQuestion[];
+  done: boolean;
+  error: string | null;
+  listeners: Set<() => void>;
+  abortController: AbortController;
 }
 
-let pending: PrefetchState | null = null;
+let streamState: QuizStreamState | null = null;
 
-/** 用 identity + education + targetPosition 作 key（与服务端缓存 key 保持一致） */
 function makeKey(fd: JobFormData): string {
   const base = `${fd.identity ?? ""}:${fd.education ?? ""}`;
   const pos = fd.targetPosition?.trim();
   return pos ? `${base}:${pos.slice(0, 30)}` : base;
 }
 
-/**
- * 在 form onSubmit 时调用。幂等：相同 key 不重复发请求。
- * Promise 失败由 consumeQuizPrefetch 的调用方处理。
- */
-export function startQuizPrefetch(formData: JobFormData): void {
-  if (typeof window === "undefined") return; // SSR 环境不执行
+function notifyListeners(state: QuizStreamState): void {
+  for (const fn of state.listeners) {
+    try { fn(); } catch { /* ignore listener errors */ }
+  }
+}
+
+export function startQuizStream(formData: JobFormData): void {
+  if (typeof window === "undefined") return;
 
   const key = makeKey(formData);
-  if (pending?.formKey === key) return; // 已在途，跳过
+  if (streamState?.formKey === key && !streamState.done) return;
+
+  streamState?.abortController.abort();
+
+  const ac = new AbortController();
+  const state: QuizStreamState = {
+    formKey: key,
+    questions: [],
+    done: false,
+    error: null,
+    listeners: new Set(),
+    abortController: ac,
+  };
+  streamState = state;
 
   const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
-  const p = fetch(`${BASE}/api/quiz/bank/generated`, {
+  fetch(`${BASE}/api/quiz/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ formData }),
-    cache: "no-store",
+    signal: ac.signal,
   })
     .then(async (res) => {
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as { questions?: QuizQuestion[] };
-      const qs = data?.questions ?? [];
-      if (!Array.isArray(qs) || qs.length === 0) throw new Error("empty response");
-      return qs;
+      if (!res.ok || !res.body) {
+        state.error = `HTTP ${res.status}`;
+        state.done = true;
+        notifyListeners(state);
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let sseBuffer = "";
+
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        sseBuffer += decoder.decode(value, { stream: true });
+        const lines = sseBuffer.split("\n");
+        sseBuffer = lines.pop()!;
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const payload = line.slice(6);
+
+          if (payload === "[DONE]") {
+            state.done = true;
+            notifyListeners(state);
+            return;
+          }
+
+          try {
+            const event = JSON.parse(payload) as { type: string; question?: QuizQuestion };
+            if (event.type === "question" && event.question) {
+              state.questions.push(event.question);
+              notifyListeners(state);
+            }
+          } catch { /* malformed SSE event, skip */ }
+        }
+      }
+
+      state.done = true;
+      notifyListeners(state);
+    })
+    .catch((err) => {
+      if (err instanceof Error && err.name === "AbortError") return;
+      state.error = err instanceof Error ? err.message : "stream failed";
+      state.done = true;
+      notifyListeners(state);
     });
-
-  p.catch(() => {}); // 静默未处理 rejection；quiz page 会处理错误
-  pending = { formKey: key, promise: p };
 }
 
-/**
- * 在 quiz/page.tsx fetchBank 时调用。
- * - 返回已在途的 Promise（可能已 resolve 或仍在请求中）
- * - 消费一次后清空，不会被第二次调用复用
- * - 若 key 不匹配（用户回退重填），返回 null → 触发新请求
- */
-export function consumeQuizPrefetch(formData: JobFormData): Promise<QuizQuestion[]> | null {
-  if (!pending) return null;
-  const key = makeKey(formData);
-  if (pending.formKey !== key) return null;
-  const p = pending.promise;
-  pending = null; // 消费后清空
-  return p;
+export function getQuizStreamSnapshot(formData: JobFormData): {
+  questions: QuizQuestion[];
+  done: boolean;
+  error: string | null;
+} | null {
+  if (!streamState || streamState.formKey !== makeKey(formData)) return null;
+  return {
+    questions: streamState.questions,
+    done: streamState.done,
+    error: streamState.error,
+  };
 }
 
-/** 用户返回 form 页面时重置，防止携带旧请求 */
-export function clearQuizPrefetch(): void {
-  pending = null;
+export function subscribeQuizStream(
+  formData: JobFormData,
+  listener: () => void,
+): () => void {
+  if (!streamState || streamState.formKey !== makeKey(formData)) {
+    return () => {};
+  }
+  streamState.listeners.add(listener);
+  const capturedState = streamState;
+  return () => { capturedState.listeners.delete(listener); };
 }
+
+export function clearQuizStream(): void {
+  streamState?.abortController.abort();
+  streamState = null;
+}
+
+// Backward-compat aliases for app/page.tsx import
+export const startQuizPrefetch = startQuizStream;
+export const clearQuizPrefetch = clearQuizStream;

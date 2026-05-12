@@ -21,9 +21,9 @@ export class InterviewPage {
       throw new Error(`interview.answerAllText: 需要 4 个回答，传入 ${answers.length}`);
     }
 
-    // 1. 等"准备好了，开始访谈"按钮（greeting 阶段）
+    // 1. 等"开始访谈"按钮（greeting 阶段）
     const startBtn = this.page.getByRole("button", {
-      name: "准备好了，开始访谈",
+      name: /开始访谈/,
     });
     await startBtn.waitFor({ state: "visible", timeout: 30_000 });
     await startBtn.click();
