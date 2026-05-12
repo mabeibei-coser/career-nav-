@@ -963,14 +963,6 @@ export default function InterviewPage() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* 诊断面板（调试完毕后删除） */}
-      <div className="fixed bottom-0 left-0 right-0 z-[999] bg-black/80 text-[10px] text-green-400 font-mono px-3 py-1.5 safe-area-pb">
-        <div>v0.3.6 | phase: {phase} | mic: {voiceSupported ? "on" : "off"}</div>
-        {debugLog.map((msg, i) => (
-          <div key={i} className="text-gray-400">{msg}</div>
-        ))}
-      </div>
     </div>
   );
 }
