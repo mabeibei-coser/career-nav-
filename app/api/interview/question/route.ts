@@ -177,10 +177,14 @@ export async function POST(req: NextRequest) {
         "[interview/question] 双链路都失败，返回 mock Q1Q2:",
         llmErr instanceof Error ? llmErr.message : llmErr
       );
-      return NextResponse.json({
-        questions: MOCK_Q1Q2,
-        source: "mock",
-      });
+      const questions: InterviewQuestion[] = MOCK_Q1Q2.map((q) => ({ ...q }));
+      const [a0, a1] = await Promise.allSettled([
+        synthesizeTTS(questions[0].text),
+        synthesizeTTS(questions[1].text),
+      ]);
+      if (a0.status === "fulfilled" && a0.value) questions[0].audioBase64 = a0.value;
+      if (a1.status === "fulfilled" && a1.value) questions[1].audioBase64 = a1.value;
+      return NextResponse.json({ questions, source: "mock" });
     }
   } catch (error: unknown) {
     console.error("[interview/question] route error:", error);

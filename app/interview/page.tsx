@@ -116,6 +116,8 @@ export default function InterviewPage() {
   const [greetingTTSReady, setGreetingTTSReady] = useState(false);
   /** 问候语正在播放中（用于 UI 状态） */
   const [greetingPlaying, setGreetingPlaying] = useState(false);
+  /** 问候语已播完（或超时），可显示"开始访谈"按钮 */
+  const [greetingDone, setGreetingDone] = useState(false);
 
   // 持有 form/scoring/quizAnswers，触发 startAfterQ3 时不再读 sessionStorage
   const formDataRef = useRef<JobFormData | null>(null);
@@ -352,13 +354,21 @@ export default function InterviewPage() {
     setGreetingPlaying(true);
     afterGreetingRef.current = () => {
       setGreetingPlaying(false);
-      // 问候语结束 → 仅还原状态，等用户点"准备好了，开始访谈"按钮。
-      // greetingAudioRef 清空，防止用户点击时重播一遍。
-      // getUserMedia 必须在用户手势里调用，由 handleStart 负责。
+      setGreetingDone(true);
       greetingAudioRef.current = null;
     };
     player.play(audio);
   }, [greetingTTSReady, player]);
+
+  // 问候 TTS 超时兜底：
+  // - TTS 未到达（greetingPlaying=false）：5s 后直接显示按钮
+  // - TTS 在播但一直没结束（音频卡住）：15s 后强制显示按钮
+  useEffect(() => {
+    if (phase !== "greeting" || greetingDone) return;
+    const ms = greetingPlaying ? 15_000 : 5000;
+    const timer = setTimeout(() => setGreetingDone(true), ms);
+    return () => clearTimeout(timer);
+  }, [phase, greetingDone, greetingPlaying]);
 
   // ---------- 进入下一题 ----------
 
@@ -394,8 +404,8 @@ export default function InterviewPage() {
 
   const handleStart = useCallback(() => {
     if (phaseRef.current !== "greeting" && phaseRef.current !== "idle") return;
-    if (greetingPlaying) return;
     addDebug("handleStart 触发");
+    player.stop();
     unlockAudio();
 
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -425,7 +435,7 @@ export default function InterviewPage() {
         addDebug("进入题目");
         proceedToQ1();
       });
-  }, [recorder, proceedToQ1, setPhaseSync, addDebug, greetingPlaying]);
+  }, [recorder, proceedToQ1, setPhaseSync, addDebug, player]);
 
   // 题目就绪后，如果当前还在 loading-q，自动朗读第一题
   useEffect(() => {
@@ -797,17 +807,7 @@ export default function InterviewPage() {
         <div className="w-full flex flex-col items-center gap-2 min-h-[100px]">
           <AnimatePresence mode="wait">
             {(phase === "greeting" || phase === "idle") && (
-              greetingPlaying ? (
-                <motion.div
-                  key="greeting-speaking"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="text-[13px] text-slate-400 animate-pulse"
-                >
-                  AI 正在介绍，请稍候…
-                </motion.div>
-              ) : (
+              greetingDone ? (
                 <motion.button
                   key="start-btn"
                   initial={{ opacity: 0, y: 6 }}
@@ -824,6 +824,16 @@ export default function InterviewPage() {
                 >
                   开始访谈
                 </motion.button>
+              ) : (
+                <motion.div
+                  key="greeting-speaking"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="text-[13px] text-slate-400 animate-pulse"
+                >
+                  {greetingPlaying ? "AI 正在介绍，请稍候…" : "AI 正在准备…"}
+                </motion.div>
               )
             )}
 
