@@ -19,9 +19,10 @@ function getBestMimeType(): string {
 }
 
 interface UseAudioRecorderReturn {
-  start: () => Promise<void>;
+  start: (requirePrimed?: boolean) => Promise<void>;
   stop: () => Promise<{ blob: Blob; mimeType: string; durationSec: number }>;
   cancel: () => void;
+  adoptStream: (stream: MediaStream) => void;
   isRecording: boolean;
   durationSec: number;
   mediaStream: MediaStream | null;
@@ -38,6 +39,7 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
   const durationRef = useRef(0);
   const mimeTypeRef = useRef('');
   const streamRef = useRef<MediaStream | null>(null);
+  const primedStreamRef = useRef<MediaStream | null>(null);
   // resolve/reject for the stop() promise
   const stopResolveRef = useRef<((value: { blob: Blob; mimeType: string; durationSec: number }) => void) | null>(null);
 
@@ -50,7 +52,11 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
 
   const stopTracks = useCallback(() => {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
+      if (streamRef.current === primedStreamRef.current) {
+        streamRef.current.getAudioTracks().forEach((t) => (t.enabled = false));
+      } else {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+      }
       streamRef.current = null;
     }
   }, []);
@@ -111,10 +117,23 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
     });
   }, [clearTimer, resetState, stopTracks]);
 
-  const start = useCallback(async (): Promise<void> => {
+  const adoptStream = useCallback((stream: MediaStream) => {
+    stream.getAudioTracks().forEach((t) => (t.enabled = false));
+    primedStreamRef.current = stream;
+  }, []);
+
+  const start = useCallback(async (requirePrimed = false): Promise<void> => {
     if (isRecording) return;
 
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    let stream: MediaStream;
+    if (primedStreamRef.current) {
+      stream = primedStreamRef.current;
+      stream.getAudioTracks().forEach((t) => (t.enabled = true));
+    } else if (requirePrimed) {
+      throw new Error('No primed mic stream');
+    } else {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    }
     streamRef.current = stream;
     setMediaStream(stream);
 
@@ -165,5 +184,5 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
     };
   }, [clearTimer, stopTracks]);
 
-  return { start, stop, cancel, isRecording, durationSec, mediaStream };
+  return { start, stop, cancel, adoptStream, isRecording, durationSec, mediaStream };
 }

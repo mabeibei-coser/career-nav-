@@ -6,9 +6,6 @@ const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
 const nextConfig: NextConfig = {
   basePath: BASE_PATH,
-  // assetPrefix keeps /_next/static isolated from sibling apps on the same domain.
-  // With basePath="/a300", static assets are served at /a300/_next/static/...
-  // Nginx must strip the /a300 prefix before proxying _next requests to this app.
   assetPrefix: BASE_PATH,
   serverExternalPackages: [
     "pdf-parse",
@@ -16,6 +13,15 @@ const nextConfig: NextConfig = {
     "puppeteer",
     "puppeteer-core",
     "better-sqlite3",
+  ],
+  headers: async () => [
+    {
+      source: "/interview",
+      headers: [
+        { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, proxy-revalidate" },
+        { key: "Pragma", value: "no-cache" },
+      ],
+    },
   ],
 };
 

@@ -334,7 +334,7 @@ export default function QuizPage() {
         sessionStorage.removeItem("reportData");
       } catch {}
       // 报告生成改为 interview Q3 答完后统一触发，这里只跳转
-      router.push("/interview");
+      router.push("/interview?_=" + Date.now());
     } catch (e) {
       console.error("[quiz] submit failed:", e);
       setSubmitting(false);

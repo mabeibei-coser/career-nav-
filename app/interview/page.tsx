@@ -30,6 +30,8 @@ type Phase =
   | "init"
   | "greeting"
   | "idle"
+  | "requesting-mic"
+  | "mic-granted"
   | "loading-q"
   | "speaking-q"
   | "ready"
@@ -358,49 +360,54 @@ export default function InterviewPage() {
 
   // ---------- 开始访谈：从 greeting 进入 Q1 ----------
 
-  const handleStart = useCallback(async () => {
-    // iOS AudioContext 解锁必须在用户手势里执行（这里是用户点击"准备好了"的手势）
+  const [debugLog, setDebugLog] = useState<string[]>([]);
+  const addDebug = useCallback((msg: string) => {
+    setDebugLog((prev) => [...prev.slice(-6), msg]);
+  }, []);
+
+  const proceedToQ1 = useCallback(() => {
+    if (questionsRef.current.length < TOTAL_QUESTIONS) {
+      setPhaseSync("loading-q");
+      return;
+    }
+    setCurrentIndex(0);
+    presentQuestion(questionsRef.current[0]);
+  }, [setPhaseSync, presentQuestion]);
+
+  const handleStart = useCallback(() => {
+    if (phaseRef.current !== "greeting" && phaseRef.current !== "idle") return;
+    if (greetingPlaying) return;
+    addDebug("handleStart 触发");
     unlockAudio();
 
-    // 进入 Q1：先弹麦克风授权弹窗（在用户手势上下文里），再开始读题
-    const proceedToQ1 = async () => {
-      // getUserMedia 必须在用户手势上下文里调用，才能在问候语页面触发授权弹窗；
-      // 若放在 greeting 自动结束回调里调用，则弹窗会出现在 Q1 页面（时序错乱）
-      try {
-        const preStream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
-        });
-        preStream.getTracks().forEach((t) => t.stop()); // 拿到权限后立即释放
-      } catch {
-        // 权限被拒 → 后续按住录音时 catch 会降级到文字模式
-      }
-      if (questionsRef.current.length < TOTAL_QUESTIONS) {
-        setPhaseSync("loading-q");
-        return;
-      }
-      setCurrentIndex(0);
-      presentQuestion(questionsRef.current[0]);
-    };
-
-    // 如果问候语正在自动播放（auto-play effect 已触发），忽略重复点击
-    if (greetingPlaying) return;
-
-    // race 情况：TTS 返回快、auto-play effect 还没触发 → greetingAudioRef 非空
-    // 先在用户手势里把问候语播完，再申请麦克风
-    if (greetingAudioRef.current) {
-      setGreetingPlaying(true);
-      afterGreetingRef.current = () => {
-        setGreetingPlaying(false);
-        greetingAudioRef.current = null;
-        void proceedToQ1();
-      };
-      player.play(greetingAudioRef.current);
+    if (!navigator.mediaDevices?.getUserMedia) {
+      addDebug("mediaDevices 不可用");
+      setVoiceSupported(false);
+      proceedToQ1();
       return;
     }
 
-    // 问候语已播过（greetingAudioRef 已清空）or TTS 尚未返回 → 直接申请麦克风并进 Q1
-    await proceedToQ1();
-  }, [setPhaseSync, presentQuestion, player, greetingPlaying]);
+    setPhaseSync("requesting-mic");
+    addDebug("getUserMedia 调用中...");
+    navigator.mediaDevices
+      .getUserMedia({ audio: true })
+      .then(
+        (stream) => {
+          addDebug("getUserMedia 成功 ✓");
+          recorder.adoptStream(stream);
+          setPhaseSync("mic-granted");
+          return new Promise<void>((r) => setTimeout(r, 600));
+        },
+        (err) => {
+          addDebug("getUserMedia 失败: " + (err?.name || "unknown"));
+          setVoiceSupported(false);
+        },
+      )
+      .then(() => {
+        addDebug("进入题目");
+        proceedToQ1();
+      });
+  }, [recorder, proceedToQ1, setPhaseSync, addDebug, greetingPlaying]);
 
   // 题目就绪后，如果当前还在 loading-q，自动朗读第一题
   useEffect(() => {
@@ -427,15 +434,16 @@ export default function InterviewPage() {
   // ---------- 录音 ----------
 
   const handleRecordStart = useCallback(async () => {
+    addDebug("录音 start(requirePrimed)");
     try {
-      await recorder.start();
+      await recorder.start(true);
       setPhaseSync("recording");
     } catch (e) {
-      console.error("mic error:", e);
+      addDebug("录音失败: " + (e instanceof Error ? e.message : "unknown"));
       setVoiceSupported(false);
       setPhaseSync("text-input");
     }
-  }, [recorder, setPhaseSync]);
+  }, [recorder, setPhaseSync, addDebug]);
 
   const handleRecordStop = useCallback(async () => {
     setPhaseSync("transcribing");
@@ -681,7 +689,7 @@ export default function InterviewPage() {
         {/* 文案区 */}
         <div className="w-full max-w-md min-h-[100px] flex flex-col items-center justify-start">
           <AnimatePresence mode="wait">
-            {(phase === "init" || phase === "greeting" || phase === "idle") && (
+            {(phase === "init" || phase === "greeting" || phase === "idle" || phase === "requesting-mic" || phase === "mic-granted") && (
               <motion.div
                 key="greeting"
                 initial={{ opacity: 0, y: 8 }}
@@ -788,6 +796,7 @@ export default function InterviewPage() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
                   onClick={handleStart}
+                  onTouchStart={(e) => { e.preventDefault(); handleStart(); }}
                   className="px-7 py-3 text-white rounded-full text-sm font-medium shadow-lg active:scale-95 transition-all min-h-[44px]"
                   style={{
                     background:
@@ -798,6 +807,30 @@ export default function InterviewPage() {
                   准备好了，开始访谈
                 </motion.button>
               )
+            )}
+
+            {phase === "requesting-mic" && (
+              <motion.div
+                key="requesting-mic"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="text-[13px] text-slate-400 animate-pulse"
+              >
+                请允许麦克风权限...
+              </motion.div>
+            )}
+
+            {phase === "mic-granted" && (
+              <motion.div
+                key="mic-granted"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="text-[13px] text-green-500"
+              >
+                麦克风已就绪 ✓
+              </motion.div>
             )}
 
             {phase === "loading-q" && (
@@ -930,6 +963,14 @@ export default function InterviewPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* 诊断面板（调试完毕后删除） */}
+      <div className="fixed bottom-0 left-0 right-0 z-[999] bg-black/80 text-[10px] text-green-400 font-mono px-3 py-1.5 safe-area-pb">
+        <div>v0.3.6 | phase: {phase} | mic: {voiceSupported ? "on" : "off"}</div>
+        {debugLog.map((msg, i) => (
+          <div key={i} className="text-gray-400">{msg}</div>
+        ))}
+      </div>
     </div>
   );
 }
