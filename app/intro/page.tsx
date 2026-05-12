@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { ArrowRight, ListChecks, Mic, Sparkles } from "lucide-react";
 import { AiOrb } from "@/app/interview/_components/ai-orb";
 import { useAudioPlayer } from "@/lib/hooks/use-audio-player";
+import { playWithBlessedAudio, stopBlessedAudio } from "@/lib/audio-bless";
 import { Button } from "@/components/ui/button";
 import type { InterviewQuestion, JobFormData } from "@/lib/types";
 
@@ -14,23 +15,6 @@ const INTRO_TEXT =
   "你好，我是你的 AI 职业定位助理。接下来我们一起完成两个环节：第一，为你定制的性格测试量表；第二，AI 语音访谈。你准备好了吗？准备好了，我们就开始测评。";
 
 const cubicEase: [number, number, number, number] = [0.22, 1, 0.36, 1];
-
-/**
- * iOS Safari / Android Chrome 首次 audio.play() 会被静默拦截（autoplay policy）。
- * 在用户手势栈里播一段极短静音 MP3，触发 AudioContext 解锁 + 激活 MediaSession，
- * 避免后续 TTS 首段音量偏低。与 interview/page.tsx 的实现保持一致。
- */
-function unlockAudio() {
-  try {
-    const a = new Audio(
-      "data:audio/mp3;base64,//uQxAAAAAAAAAAAAAAAAAAAAAAAWGluZgAAAA8AAAACAAACcQCA",
-    );
-    a.volume = 1.0;
-    a.play().catch(() => {});
-  } catch {
-    /* ignore */
-  }
-}
 
 export default function IntroPage() {
   const router = useRouter();
@@ -100,47 +84,23 @@ export default function IntroPage() {
     };
   }, [router]);
 
-  // TTS 就绪 → 尝试 autoplay（iOS 上可能被拦截，静默失败）
+  // TTS 就绪 → 优先用 blessed audio（iOS 需要），降级到 useAudioPlayer（桌面端）
   useEffect(() => {
     if (!ttsAudio) return;
     setIsSpeaking(true);
-    player.play(ttsAudio);
+    const played = playWithBlessedAudio(ttsAudio, () => setIsSpeaking(false));
+    if (!played) {
+      player.play(ttsAudio);
+    }
     setTtsAudio(null);
   }, [ttsAudio, player]);
 
-  /**
-   * CTA 点击：必须保持调用链 **同步**，否则 iOS Safari 会丢失用户手势：
-   *   unlockAudio()   → 同步，激活 audio session
-   *   getUserMedia()  → 同步调用、异步 resolve（promise 在用户手势栈里发起就 OK）
-   * promise 完成后再 router.push，避免 mic 弹窗出现在 quiz 页（体验割裂）。
-   */
   const handleStart = () => {
     if (submitting) return;
     setSubmitting(true);
+    stopBlessedAudio();
     player.stop();
-    unlockAudio();
-
-    if (!navigator.mediaDevices?.getUserMedia) {
-      sessionStorage.setItem("micPermission", "unsupported");
-      router.push("/quiz");
-      return;
-    }
-
-    navigator.mediaDevices
-      .getUserMedia({ audio: true })
-      .then((stream) => {
-        // 立即释放 track —— 仅为获取权限。session 内权限保持，
-        // interview 页再次 getUserMedia 不会再弹窗。
-        stream.getTracks().forEach((t) => t.stop());
-        sessionStorage.setItem("micPermission", "granted");
-      })
-      .catch(() => {
-        // 拒绝 / 不可用 → interview 页直接降级到文字输入
-        sessionStorage.setItem("micPermission", "denied");
-      })
-      .finally(() => {
-        router.push("/quiz");
-      });
+    router.push("/quiz");
   };
 
   return (

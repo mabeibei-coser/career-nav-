@@ -202,7 +202,7 @@ export default function QuizPage() {
                 // 仍是通用题，安排重试
                 retryCount++;
                 if (retryCount < MAX_RETRIES) {
-                  personalizationTimerRef.current = setTimeout(pollPersonalized, 30_000);
+                  personalizationTimerRef.current = setTimeout(pollPersonalized, 5_000);
                 }
                 return prev;
               }
@@ -221,8 +221,7 @@ export default function QuizPage() {
           }
         };
 
-        // 30s 后首次轮询（服务端个性化生成典型耗时 20-60s）
-        personalizationTimerRef.current = setTimeout(pollPersonalized, 30_000);
+        personalizationTimerRef.current = setTimeout(pollPersonalized, 5_000);
       }
     },
     [fetchGenerated],

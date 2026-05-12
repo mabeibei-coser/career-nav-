@@ -26,6 +26,7 @@ import {
 import { startReportPrefetch, clearReportPrefetch } from "@/lib/report-prefetch";
 import { clearBgSections } from "@/lib/report-bg-runner";
 import { startQuizPrefetch, clearQuizPrefetch } from "@/lib/quiz-prefetch";
+import { blessAudio } from "@/lib/audio-bless";
 import type { JobFormData, UserIdentity } from "@/lib/types";
 
 const formSchema = z.object({
@@ -100,6 +101,7 @@ export default function HomePage() {
   const onSubmit = (data: FormValues) => {
     if (isSubmitting) return;
     setIsSubmitting(true);
+    blessAudio();
     const payload: JobFormData = {
       identity: data.identity as UserIdentity,
       targetPosition: data.targetPosition ?? "",
