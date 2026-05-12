@@ -4,13 +4,11 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { ArrowRight, ListChecks, Mic, Sparkles } from "lucide-react";
-import { AiOrb } from "@/app/interview/_components/ai-orb";
 import { useAudioPlayer } from "@/lib/hooks/use-audio-player";
 import { playWithBlessedAudio, stopBlessedAudio } from "@/lib/audio-bless";
 import { Button } from "@/components/ui/button";
 import type { InterviewQuestion, JobFormData } from "@/lib/types";
 
-// AI 助理开场白（会被 TTS 朗读）
 const INTRO_TEXT =
   "你好，我是你的 AI 职业定位助理。接下来我们一起完成两个环节：第一，为你定制的性格测试量表；第二，AI 语音访谈。你准备好了吗？准备好了，我们就开始测评。";
 
@@ -24,7 +22,6 @@ export default function IntroPage() {
 
   const player = useAudioPlayer(() => setIsSpeaking(false));
 
-  // 守卫 + 后台预合成 intro TTS + 后台预热 interview Q1Q2
   useEffect(() => {
     if (typeof window === "undefined") return;
     const formDataStr = sessionStorage.getItem("formData");
@@ -37,7 +34,6 @@ export default function IntroPage() {
     let cancelled = false;
     const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
-    // 1) 预合成本页 AI 助理开场白
     fetch(`${base}/api/interview/tts`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -48,13 +44,8 @@ export default function IntroPage() {
         if (cancelled) return;
         if (data?.audioBase64) setTtsAudio(data.audioBase64);
       })
-      .catch(() => {
-        // 静默降级：屏幕上文字依然能读到
-      });
+      .catch(() => {});
 
-    // 2) 后台预热 interview Q1Q2（route 内含 TTS 合成，返回 audioBase64）
-    //    Q1Q2 仅依赖 formData，不依赖 quiz 答案，可提前。
-    //    用 sessionStorage 跨页面传递；interview 页 mount 时优先消费。
     if (!sessionStorage.getItem("interviewQ1Q2")) {
       try {
         const formData = JSON.parse(formDataStr) as JobFormData;
@@ -84,7 +75,6 @@ export default function IntroPage() {
     };
   }, [router]);
 
-  // TTS 就绪 → 优先用 blessed audio（iOS 需要），降级到 useAudioPlayer（桌面端）
   useEffect(() => {
     if (!ttsAudio) return;
     setIsSpeaking(true);
@@ -105,25 +95,23 @@ export default function IntroPage() {
 
   return (
     <div className="min-h-screen relative overflow-hidden">
-      {/* 与 form / preparing 同色系背景 */}
       <div className="fixed inset-0 bg-gradient-to-br from-[var(--blue-50)] via-white to-[var(--blue-100)]" />
       <div className="fixed inset-0 hero-grid opacity-40" />
       <div className="fixed top-20 -right-32 w-96 h-96 rounded-full bg-gradient-to-br from-[var(--blue-200)] to-[var(--blue-100)] opacity-40 blur-3xl" />
       <div className="fixed -bottom-20 -left-32 w-80 h-80 rounded-full bg-gradient-to-tr from-[var(--blue-300)] to-[var(--blue-100)] opacity-30 blur-3xl" />
 
       <div className="relative z-10 min-h-screen flex flex-col items-center px-5 py-6 sm:py-8">
-        {/* 蓝色光球 */}
+        {/* Soft orb — no hard edges */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
+          initial={{ opacity: 0, scale: 0.85 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.75, ease: cubicEase }}
+          transition={{ duration: 0.8, ease: cubicEase }}
           className="mt-4 sm:mt-8 mb-4 sm:mb-5"
           aria-hidden
         >
-          <AiOrb state={isSpeaking ? "speaking" : "idle"} size={172} />
+          <SoftOrb speaking={isSpeaking} />
         </motion.div>
 
-        {/* 主标题 */}
         <motion.h1
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -133,7 +121,6 @@ export default function IntroPage() {
           你好，我是你的 AI 职业定位助理
         </motion.h1>
 
-        {/* 副标题 */}
         <motion.p
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -143,49 +130,108 @@ export default function IntroPage() {
           接下来我们一起完成两个环节
         </motion.p>
 
-        {/* 两步卡片 */}
-        <div className="w-full max-w-md space-y-3">
-          <StepCard
-            index={0}
-            Icon={ListChecks}
-            badge="01"
-            title={
-              <>
-                <span className="text-[var(--blue-600)]">定制</span>
-                性格测试量表
-                <Sparkles
-                  className="inline-block ml-1.5 size-3.5 text-[var(--blue-400)] -translate-y-px"
-                  strokeWidth={2.2}
-                />
-              </>
-            }
-            subtitle="8 道量表题"
-          />
-          <StepCard
-            index={1}
-            Icon={Mic}
-            badge="02"
-            title="AI 语音访谈"
-            subtitle="开放式对话"
-          />
-        </div>
-
-        {/* 结果说明 */}
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.7 }}
-          className="text-xs sm:text-sm text-[var(--muted-foreground)] mt-6 mb-7 text-center max-w-sm leading-relaxed"
+        {/* Journey flow — single container, timeline layout */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: cubicEase, delay: 0.4 }}
+          className="w-full max-w-md mb-auto"
         >
-          这两个环节完成之后，将为你生成完整的评估报告
-        </motion.p>
+          <div className="relative rounded-2xl bg-white/50 backdrop-blur-sm border border-white/70 shadow-[0_1px_2px_rgba(0,0,0,0.03),0_8px_32px_rgba(59,130,246,0.06)] overflow-hidden">
+            {/* Top accent line */}
+            <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[var(--blue-300)]/60 to-transparent" />
+
+            <div className="relative p-5 sm:p-6">
+              {/* Timeline spine */}
+              <div
+                className="absolute w-px bg-gradient-to-b from-[var(--blue-300)] via-[var(--blue-200)] to-[var(--blue-100)]"
+                style={{ left: "1.375rem", top: "3.75rem", height: "4.25rem" }}
+              />
+
+              {/* Step 1 */}
+              <motion.div
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, ease: cubicEase, delay: 0.5 }}
+                className="flex gap-3.5 relative mb-7"
+              >
+                <div className="shrink-0 relative z-10">
+                  <div className="size-[2.125rem] rounded-lg bg-gradient-to-br from-[var(--blue-500)] to-[var(--blue-600)] text-white flex items-center justify-center shadow-md shadow-blue-500/20">
+                    <ListChecks className="size-[17px]" strokeWidth={1.8} />
+                  </div>
+                </div>
+                <div className="pt-px min-w-0">
+                  <span className="inline-block text-[10px] font-mono font-semibold text-[var(--blue-400)]/80 tracking-[0.16em] uppercase mb-1">
+                    Step 01
+                  </span>
+                  <h3 className="text-[15px] sm:text-base font-semibold text-[var(--navy-900)] leading-snug">
+                    <span className="text-[var(--blue-600)]">定制</span>
+                    性格测试量表
+                    <Sparkles
+                      className="inline-block ml-1 size-3 text-[var(--blue-400)] -translate-y-px"
+                      strokeWidth={2.2}
+                    />
+                  </h3>
+                  <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
+                    8 道量表题
+                  </p>
+                </div>
+              </motion.div>
+
+              {/* Step 2 */}
+              <motion.div
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, ease: cubicEase, delay: 0.6 }}
+                className="flex gap-3.5 relative"
+              >
+                <div className="shrink-0 relative z-10">
+                  <div className="size-[2.125rem] rounded-lg bg-gradient-to-br from-[var(--blue-400)] to-[var(--blue-500)] text-white flex items-center justify-center shadow-md shadow-blue-500/15">
+                    <Mic className="size-[17px]" strokeWidth={1.8} />
+                  </div>
+                </div>
+                <div className="pt-px min-w-0">
+                  <span className="inline-block text-[10px] font-mono font-semibold text-[var(--blue-400)]/80 tracking-[0.16em] uppercase mb-1">
+                    Step 02
+                  </span>
+                  <h3 className="text-[15px] sm:text-base font-semibold text-[var(--navy-900)] leading-snug">
+                    AI 语音访谈
+                  </h3>
+                  <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
+                    开放式对话
+                  </p>
+                </div>
+              </motion.div>
+            </div>
+
+            {/* Outcome footer */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.7 }}
+              className="px-5 sm:px-6 py-3 bg-[var(--blue-50)]/40 border-t border-[var(--blue-100)]/40 flex items-center justify-center gap-2"
+            >
+              <svg className="size-3.5 text-[var(--blue-400)]" viewBox="0 0 16 16" fill="none" aria-hidden>
+                <path
+                  d="M2 14h12M4 10h8M6 6h4M7.5 2h1"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <span className="text-xs text-[var(--muted-foreground)]">
+                完成后生成完整的职业评估报告
+              </span>
+            </motion.div>
+          </div>
+        </motion.div>
 
         {/* CTA */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: cubicEase, delay: 0.8 }}
-          className="w-full max-w-md pb-[max(1rem,env(safe-area-inset-bottom))]"
+          className="w-full max-w-md mt-7 pb-[max(1rem,env(safe-area-inset-bottom))]"
         >
           <Button
             onClick={handleStart}
@@ -232,45 +278,86 @@ export default function IntroPage() {
   );
 }
 
-function StepCard({
-  index,
-  Icon,
-  badge,
-  title,
-  subtitle,
-}: {
-  index: number;
-  Icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
-  badge: string;
-  title: React.ReactNode;
-  subtitle: string;
-}) {
+/** Soft-edged orb with layered radial gradients — no overflow:hidden clipping. */
+function SoftOrb({ speaking }: { speaking: boolean }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, x: -12 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.5, ease: cubicEase, delay: 0.45 + index * 0.1 }}
-      className="glass-card rounded-xl p-4 sm:p-5 flex items-center gap-4 relative overflow-hidden"
+    <div
+      className="relative flex items-center justify-center"
+      style={{ width: 186, height: 186 }}
     >
-      {/* 左侧 icon */}
-      <div className="shrink-0 size-12 rounded-xl bg-gradient-to-br from-[var(--blue-500)] to-[var(--blue-400)] text-white flex items-center justify-center shadow-md shadow-blue-500/15 relative">
-        <Icon className="size-5 relative z-10" strokeWidth={1.8} />
-        {/* 微光晕 */}
-        <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none" />
-      </div>
+      {/* Ambient pulse glow */}
+      <motion.div
+        className="absolute rounded-full pointer-events-none"
+        style={{
+          width: 270,
+          height: 270,
+          background:
+            "radial-gradient(circle, rgba(59,130,246,0.13) 0%, rgba(59,130,246,0.04) 50%, transparent 72%)",
+        }}
+        animate={{ scale: speaking ? [1, 1.14, 1] : [1, 1.05, 1] }}
+        transition={{
+          duration: speaking ? 2.4 : 5.5,
+          repeat: Infinity,
+          ease: "easeInOut",
+        }}
+      />
 
-      {/* 中间文案 */}
-      <div className="flex-1 min-w-0">
-        <div className="text-[11px] tracking-[0.18em] font-bold text-[var(--blue-500)]/70 font-mono mb-1">
-          {badge}
-        </div>
-        <div className="text-base sm:text-[17px] font-semibold text-[var(--navy-900)] leading-snug">
-          {title}
-        </div>
-        <div className="text-xs sm:text-sm text-[var(--muted-foreground)] mt-1">
-          {subtitle}
-        </div>
-      </div>
-    </motion.div>
+      {/* Core sphere */}
+      <motion.div
+        className="absolute rounded-full"
+        style={{
+          width: 152,
+          height: 152,
+          background: [
+            "radial-gradient(ellipse 80% 75% at 38% 32%, rgba(255,255,255,0.55) 0%, transparent 50%)",
+            "radial-gradient(circle at 52% 52%, oklch(78% 0.14 250) 0%, oklch(72% 0.12 248) 28%, oklch(84% 0.07 240) 58%, oklch(93% 0.03 236) 82%, transparent 100%)",
+          ].join(","),
+          boxShadow:
+            "0 0 50px rgba(59,130,246,0.22), 0 0 100px rgba(59,130,246,0.08)",
+        }}
+        animate={{ scale: speaking ? [1, 1.05, 1] : [1, 1.015, 1] }}
+        transition={{
+          duration: speaking ? 2.2 : 5,
+          repeat: Infinity,
+          ease: "easeInOut",
+        }}
+      />
+
+      {/* Secondary color drift */}
+      <motion.div
+        className="absolute rounded-full"
+        style={{
+          width: 128,
+          height: 128,
+          background: [
+            "radial-gradient(ellipse 120% 100% at 65% 60%, oklch(65% 0.18 260 / 0.45) 0%, transparent 55%)",
+            "radial-gradient(ellipse 100% 120% at 28% 72%, oklch(70% 0.15 238 / 0.35) 0%, transparent 50%)",
+          ].join(","),
+        }}
+        animate={{
+          rotate: speaking ? [0, 25, 0] : [0, 8, 0],
+          scale: speaking ? [1, 1.07, 1] : [1, 1.02, 1],
+        }}
+        transition={{
+          duration: speaking ? 3.5 : 8,
+          repeat: Infinity,
+          ease: "easeInOut",
+        }}
+      />
+
+      {/* Specular highlight */}
+      <div
+        className="absolute rounded-full pointer-events-none"
+        style={{
+          width: 65,
+          height: 40,
+          top: "28%",
+          left: "22%",
+          background:
+            "radial-gradient(ellipse, rgba(255,255,255,0.4) 0%, transparent 72%)",
+          filter: "blur(5px)",
+        }}
+      />
+    </div>
   );
 }
