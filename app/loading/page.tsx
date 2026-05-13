@@ -100,8 +100,8 @@ function RotatingTips({ identity }: { identity: UserIdentity | null }) {
   const tagLabel = identity === "recent_grad" ? "求职路上的小提示" : "陪你慢慢来";
 
   return (
-    <div className="relative rounded-2xl border border-[var(--blue-200)] bg-gradient-to-br from-white via-[var(--blue-50)]/40 to-white p-4 sm:p-5 overflow-hidden">
-      <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[var(--blue-400)] to-transparent" />
+    <div className="relative rounded-2xl glass-card p-4 sm:p-5 overflow-hidden">
+      <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[var(--blue-300)]/60 to-transparent" />
       <div className="flex items-start gap-3">
         <div className="shrink-0 size-8 rounded-full bg-gradient-to-br from-[var(--blue-400)] to-[var(--blue-600)] flex items-center justify-center shadow-sm">
           <Sparkles className="size-4 text-white" />
@@ -224,14 +224,14 @@ function SectionStatusList({ progress }: { progress: SectionProgress[] }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: cubicEase }}
             className={cn(
-              "flex sm:flex-col items-center sm:items-center gap-3 sm:gap-2 px-3 py-2.5 sm:py-3 rounded-xl border transition-colors",
+              "flex sm:flex-col items-center sm:items-center gap-3 sm:gap-2 px-3 py-2.5 sm:py-3 rounded-xl border transition-all duration-300",
               status === "loading" &&
-                "border-[var(--blue-300)] bg-[var(--blue-50)]/70",
-              status === "completed" && "border-emerald-200 bg-emerald-50/40",
+                "border-[var(--blue-300)] bg-[var(--blue-50)]/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]",
+              status === "completed" && "border-emerald-200/70 bg-gradient-to-br from-emerald-50/70 to-white/50 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]",
               status === "fallback" && "border-amber-200 bg-amber-50/40",
-              status === "skipped" && "border-[var(--blue-100)] bg-white/60",
+              status === "skipped" && "border-[var(--blue-100)] bg-white/50 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]",
               status === "pending" &&
-                "border-[var(--blue-100)] bg-white/40"
+                "border-[var(--blue-100)] bg-white/30"
             )}
           >
             <StatusDot status={status} />
@@ -255,9 +255,20 @@ function StatusDot({ status }: { status: SectionStatus }) {
   const base = "size-7 rounded-full flex items-center justify-center shrink-0";
   if (status === "completed") {
     return (
-      <div className={cn(base, "bg-emerald-500")}>
-        <CheckCircle2 className="size-4 text-white" />
-      </div>
+      <motion.div
+        className={cn(base, "bg-emerald-500")}
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: "spring", stiffness: 320, damping: 18, mass: 0.8 }}
+      >
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: "spring", stiffness: 400, damping: 20, delay: 0.08 }}
+        >
+          <CheckCircle2 className="size-4 text-white" />
+        </motion.div>
+      </motion.div>
     );
   }
   if (status === "fallback") {
@@ -557,7 +568,7 @@ export default function LoadingPage() {
           transition={{ duration: 0.4, ease: cubicEase }}
           className="mb-6"
         >
-          <StepIndicator currentStep={3} compact />
+          <StepIndicator currentStep={2} compact />
         </motion.div>
 
         <motion.div
@@ -566,7 +577,7 @@ export default function LoadingPage() {
           transition={{ duration: 0.5, ease: cubicEase, delay: 0.05 }}
           className="text-center mb-6"
         >
-          <h1 className="text-2xl sm:text-3xl font-bold text-[var(--navy-950)] tracking-tight mb-2">
+          <h1 className="text-2xl sm:text-3xl font-bold text-[var(--navy-950)] tracking-tight mb-2 text-balance">
             正在生成你的定位报告
           </h1>
           <p className="text-[13px] sm:text-sm text-[var(--muted-foreground)]">
@@ -626,13 +637,13 @@ export default function LoadingPage() {
                 <div className="flex flex-col sm:flex-row gap-2">
                   <button
                     onClick={handleUseMock}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium px-4 py-2.5 transition-colors"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white text-sm font-medium px-4 py-2.5 transition-all"
                   >
                     使用示例报告查看
                   </button>
                   <button
                     onClick={handleRetry}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-amber-300 bg-white hover:bg-amber-50 text-amber-800 text-sm font-medium px-4 py-2.5 transition-colors"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-white hover:bg-amber-50 active:scale-[0.98] text-amber-800 text-sm font-medium px-4 py-2.5 transition-all"
                   >
                     <RefreshCw className="size-4" />
                     重新生成

@@ -480,12 +480,18 @@ export default function HomePage() {
             <Button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full h-12 text-base font-medium bg-[var(--navy-900)] hover:bg-[var(--navy-800)] text-white rounded-xl btn-glow transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full h-12 text-base font-medium bg-[var(--navy-900)] hover:bg-[var(--navy-800)] text-white rounded-xl btn-glow transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed group"
               >
                 <span className="flex items-center gap-2">
                   {isSubmitting ? "提交中…" : "下一步"}
                   {!isSubmitting && (
-                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 18 18"
+                      fill="none"
+                      className="transition-transform duration-200 group-hover:translate-x-0.5"
+                    >
                       <path
                         d="M6.5 4L12 9l-5.5 5"
                         stroke="currentColor"

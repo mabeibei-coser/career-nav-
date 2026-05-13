@@ -124,7 +124,7 @@ export default function PreparingPage() {
                 transition={{ duration: 0.6, ease: cubicEase, delay: 0.25 }}
                 className="w-full"
               >
-                <div className="relative rounded-2xl bg-white/50 backdrop-blur-sm border border-white/70 shadow-[0_1px_2px_rgba(0,0,0,0.03),0_8px_32px_rgba(59,130,246,0.06)] overflow-hidden">
+                <div className="relative rounded-2xl glass-card overflow-hidden">
                   <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[var(--blue-300)]/60 to-transparent" />
 
                   <div className="p-4 sm:p-5 space-y-0.5">
@@ -371,7 +371,7 @@ function StepRow({
         <motion.div
           animate={{
             color: done
-              ? "rgb(6,95,70)"
+              ? "var(--semantic-positive)"
               : active
                 ? "var(--navy-900)"
                 : "var(--navy-700)",
