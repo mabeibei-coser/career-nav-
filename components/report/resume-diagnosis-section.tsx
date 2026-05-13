@@ -107,7 +107,6 @@ export default function ResumeDiagnosisSection({ data, hasResume, index = 4, tot
   const scoreColor = getScoreColor(score);
 
   const issues = Array.isArray(data.issues) ? data.issues : [];
-  const suggestions = Array.isArray(data.suggestions) ? data.suggestions : [];
 
   // SVG 圆环参数
   const ringSize = 92;
@@ -265,40 +264,8 @@ export default function ResumeDiagnosisSection({ data, hasResume, index = 4, tot
           </div>
         )}
 
-        {/* 优化建议 */}
-        {suggestions.length > 0 && (
-          <div>
-            <div className="text-[11px] font-semibold tracking-wider uppercase text-[var(--report-ink-muted)] mb-3">
-              优化建议
-            </div>
-            <Container className="space-y-3" {...containerProps}>
-              {suggestions.map((sug, i) => (
-                <Item
-                  key={i}
-                  className="rounded-xl border border-[var(--blue-100)] bg-[var(--blue-50)]/40 p-4 break-inside-avoid"
-                  {...itemProps}
-                >
-                  <div className="flex items-start gap-3">
-                    <span className="shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-lg bg-[var(--blue-500)] text-[11px] font-bold text-white tabular-nums">
-                      {i + 1}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-[15px] font-semibold text-[var(--navy-900)] mb-1.5">
-                        {sug.title}
-                      </h4>
-                      <p className="text-[13.5px] leading-[1.75] text-[var(--navy-800)]">
-                        {sug.detail}
-                      </p>
-                    </div>
-                  </div>
-                </Item>
-              ))}
-            </Container>
-          </div>
-        )}
-
-        {/* 两端皆空时的兜底 */}
-        {issues.length === 0 && suggestions.length === 0 && (
+        {/* 无问题时的兜底 */}
+        {issues.length === 0 && (
           <p className="text-[13.5px] text-[var(--report-ink-soft)]">
             暂无具体反馈条目。
           </p>
