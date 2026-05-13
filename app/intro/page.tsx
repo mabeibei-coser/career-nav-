@@ -163,7 +163,7 @@ export default function IntroPage() {
             <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[var(--blue-300)]/50 to-transparent" />
 
             {/* Step 1 */}
-            <div className="flex items-start gap-4 px-5 pt-5 sm:px-6 sm:pt-6">
+            <div className="flex items-start gap-4 px-5 py-5 sm:px-6 sm:py-6">
               <div className="shrink-0 size-11 rounded-2xl bg-[var(--blue-500)] text-white flex items-center justify-center text-base font-bold">
                 01
               </div>
@@ -182,7 +182,7 @@ export default function IntroPage() {
             <div className="mx-5 sm:mx-6 border-t border-[var(--blue-100)]" />
 
             {/* Step 2 */}
-            <div className="flex items-start gap-4 px-5 pb-5 sm:px-6 sm:pb-6">
+            <div className="flex items-start gap-4 px-5 py-5 sm:px-6 sm:py-6">
               <div className="shrink-0 size-11 rounded-2xl bg-[var(--blue-500)] text-white flex items-center justify-center text-base font-bold">
                 02
               </div>
