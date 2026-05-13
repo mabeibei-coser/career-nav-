@@ -113,9 +113,28 @@ export function ExportActions({
       {/* 预约服务展开信息 */}
       {showContact && (
         <div className="max-w-5xl mx-auto px-4 pt-3 pb-1 sm:px-6">
-          <div className="flex items-start gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
-            <Phone className="size-4 text-blue-600 mt-0.5 shrink-0" />
-            <p className="text-[13px] leading-[1.6] text-blue-800">{CONTACT_TEXT}</p>
+          <div className="rounded-xl border border-[var(--blue-200)] bg-[var(--blue-50)] px-5 py-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Phone className="size-5 text-[var(--blue-600)] shrink-0" />
+              <span className="text-[15px] font-semibold text-[var(--navy-900)]">
+                线下咨询服务
+              </span>
+            </div>
+            <div className="space-y-1.5 pl-7">
+              <p className="text-[15px] leading-[1.7] text-[var(--navy-800)]">
+                咨询电话：
+                <a href="tel:02163011095" className="font-semibold text-[var(--blue-600)] underline underline-offset-2">
+                  021-63011095
+                </a>
+                、
+                <a href="tel:02163137613" className="font-semibold text-[var(--blue-600)] underline underline-offset-2">
+                  021-63137613
+                </a>
+              </p>
+              <p className="text-[14px] leading-[1.7] text-[var(--navy-700)]">
+                地址：黄浦区中山南一路555号
+              </p>
+            </div>
           </div>
         </div>
       )}
