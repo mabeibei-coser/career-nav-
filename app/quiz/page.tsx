@@ -323,15 +323,15 @@ export default function QuizPage() {
                         "min-h-[56px] w-full flex items-start gap-3 rounded-xl border-2 px-4 py-3.5 text-left transition-all active:scale-[0.98]",
                         "focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--blue-500)]/40",
                         active
-                          ? "border-[var(--blue-500)] bg-[var(--blue-500)]/5 shadow-sm"
+                          ? "border-[var(--blue-500)] bg-[var(--blue-500)]/5 shadow-[0_0_0_3px_rgba(59,130,246,0.12),0_4px_16px_rgba(59,130,246,0.1)]"
                           : "border-[var(--blue-100)] bg-white/70 hover:border-[var(--blue-300)] hover:bg-white",
                       )}
                     >
                       <span
                         className={cn(
-                          "shrink-0 size-7 rounded-full flex items-center justify-center text-sm font-bold transition-all mt-0.5",
+                          "shrink-0 size-7 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-150 mt-0.5",
                           active
-                            ? OPTION_LABEL_ACTIVE_COLORS[label]
+                            ? cn(OPTION_LABEL_ACTIVE_COLORS[label], "scale-[1.1]")
                             : OPTION_LABEL_COLORS[label],
                         )}
                       >
@@ -375,7 +375,7 @@ export default function QuizPage() {
               variant="outline"
               onClick={goPrev}
               disabled={currentIndex === 0 || submitting}
-              className={cn("h-11 px-5", currentIndex === 0 && "invisible")}
+              className={cn("h-11 px-5 rounded-xl", currentIndex === 0 && "invisible")}
             >
               上一题
             </Button>
@@ -385,7 +385,7 @@ export default function QuizPage() {
                 type="button"
                 onClick={goNext}
                 disabled={!selectedLabel || submitting || needsWaitNext}
-                className="h-11 px-6 bg-[var(--blue-500)] hover:bg-[var(--blue-600)]"
+                className="h-11 px-6 rounded-xl bg-[var(--blue-500)] hover:bg-[var(--blue-600)] active:scale-[0.98] transition-all"
               >
                 {needsWaitNext ? (
                   <>
@@ -401,7 +401,7 @@ export default function QuizPage() {
                 type="button"
                 onClick={handleSubmit}
                 disabled={!allAnswered || submitting}
-                className="h-11 px-6 bg-[var(--navy-900)] hover:bg-[var(--navy-800)] text-white"
+                className="h-12 px-7 rounded-xl bg-[var(--navy-900)] hover:bg-[var(--navy-800)] text-white btn-glow text-base font-medium"
               >
                 {submitting ? (
                   <>
