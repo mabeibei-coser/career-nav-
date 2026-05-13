@@ -7,8 +7,10 @@ export const runtime = "nodejs";
 export const maxDuration = 180; // dev 模式 Turbopack 冷编译 /report + Puppeteer 启动 + 渲染合计可能 ~90-120s
 
 // 通过 127.0.0.1 让 headless Chromium 回访自己的页面
+// 必须拼 basePath，否则 Next.js 返回 404，data-pdf-section 永远不出现
 const INTERNAL_BASE =
-  process.env.PDF_INTERNAL_BASE_URL || `http://127.0.0.1:${process.env.PORT || 3000}`;
+  process.env.PDF_INTERNAL_BASE_URL ||
+  `http://127.0.0.1:${process.env.PORT || 3000}${process.env.NEXT_PUBLIC_BASE_PATH || ""}`;
 
 function todayYYYYMMDD(): string {
   const d = new Date();

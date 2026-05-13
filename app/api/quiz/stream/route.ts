@@ -143,7 +143,8 @@ async function generateFromIflytek(formData: JobFormData): Promise<QuizQuestion[
   if (!iflytek) throw new Error("iFlytek not configured");
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30_000);
+  // 降低超时：如果讯飞也挂，快速 fallback 到预置题库，避免用户等 30s
+  const timer = setTimeout(() => controller.abort(), 10_000);
 
   try {
     const response = await iflytek.chat.completions.create(
