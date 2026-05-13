@@ -1,6 +1,6 @@
 // 主模型：讯飞 Coding Plan（astron-code-latest）
-// 兼容 OpenAI SDK。env var 沿用 DEEPSEEK_* 命名，值已切换到讯飞 Coding API。
-// json_object 模式要求 prompt 内含 "json" 字符串（小写也可），否则返回 400。
+// ⚠️ 没有 DeepSeek！env var 沿用 DEEPSEEK_* 命名，但实际连接讯飞 Coding API。
+// 兼容 OpenAI SDK。json_object 模式要求 prompt 内含 "json"（小写也可），否则返回 400。
 import OpenAI from "openai";
 
 let cachedClient: OpenAI | null = null;
