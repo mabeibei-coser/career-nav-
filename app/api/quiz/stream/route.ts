@@ -16,7 +16,7 @@ export const runtime = "nodejs";
 export const maxDuration = 120;
 
 const TOTAL_QUESTIONS = 8;
-// DeepSeek 流式 40s 超时 → 讯飞非流式补齐剩余 → FALLBACK 兜底
+// 讯飞 Coding（主模型）流式 40s 超时 → 讯飞通用（兜底模型）非流式补齐 → 静态题库兜底
 const STREAM_TIMEOUT_MS = 40_000;
 
 export async function POST(req: NextRequest) {
@@ -53,33 +53,33 @@ export async function POST(req: NextRequest) {
         emittedCount++;
       };
 
+      // 第一轮：讯飞 Coding（主模型）流式生成
       try {
-        await streamFromDeepseek(formData, emitQuestion);
-      } catch (dsErr) {
-        const msg = dsErr instanceof Error ? dsErr.message : String(dsErr);
-        console.warn(`[quiz/stream] DeepSeek failed after ${emittedCount} questions:`, msg);
+        await streamFromPrimary(formData, emitQuestion);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[quiz/stream] 主模型流式超时/失败，已出 ${emittedCount} 题:`, msg);
       }
 
-      // DeepSeek 没出满 8 题 → 讯飞补齐剩余题目
+      // 第二轮：主模型没出满 → 讯飞通用模型（兜底）非流式补齐
       if (iflytek && emittedCount < TOTAL_QUESTIONS) {
         try {
           const remaining = TOTAL_QUESTIONS - emittedCount;
-          console.info(`[quiz/stream] 讯飞补位: 还需 ${remaining} 题`);
-          const questions = await generateFromIflytek(formData);
+          console.info(`[quiz/stream] 讯飞通用模型补位: 还需 ${remaining} 题`);
+          const questions = await generateFromFallbackLLM(formData);
           // 跳过前 emittedCount 题（避免与已生成的重复），取剩余数量
           for (const q of questions.slice(emittedCount, TOTAL_QUESTIONS)) {
             emitQuestion(q);
           }
         } catch (ifErr) {
           const ifMsg = ifErr instanceof Error ? ifErr.message : String(ifErr);
-          console.warn("[quiz/stream] iFlytek fallback also failed:", ifMsg);
+          console.warn("[quiz/stream] 讯飞通用模型也失败:", ifMsg);
         }
       }
 
-      // 无论 AI 生成了多少题，都顶满 TOTAL_QUESTIONS
-      // emittedCount=0 → 全部用 FALLBACK；emittedCount=3 → 补 SJT-04..08
+      // 第三轮：两个模型都没出满 → 静态题库兜底
       if (emittedCount < TOTAL_QUESTIONS) {
-        console.info(`[quiz/stream] 补位 fallback: 已生成 ${emittedCount} 题，补 ${TOTAL_QUESTIONS - emittedCount} 题`);
+        console.info(`[quiz/stream] 静态兜底: 已生成 ${emittedCount} 题，补 ${TOTAL_QUESTIONS - emittedCount} 题`);
         for (const q of FALLBACK_QUESTIONS.slice(emittedCount)) {
           emitQuestion(q);
         }
@@ -100,7 +100,11 @@ export async function POST(req: NextRequest) {
   });
 }
 
-async function streamFromDeepseek(
+/**
+ * 讯飞 Coding Plan（主模型）流式生成 8 题。
+ * env 变量沿用 DEEPSEEK_* 命名，实际连接 maas-coding-api.cn-huabei-1.xf-yun.com。
+ */
+async function streamFromPrimary(
   formData: JobFormData,
   emitQuestion: (q: QuizQuestion) => void,
 ): Promise<void> {
@@ -120,7 +124,6 @@ async function streamFromDeepseek(
         ],
         temperature: 1.0,
         max_tokens: 4000,
-        // 不启用 response_format：astron-code-latest 在此模式下输出异常
         stream: true,
       },
       { signal: controller.signal },
@@ -137,18 +140,21 @@ async function streamFromDeepseek(
     }
 
     if (parser.getEmittedCount() < TOTAL_QUESTIONS) {
-      throw new Error(`Only ${parser.getEmittedCount()} questions parsed from stream`);
+      throw new Error(`主模型只生成了 ${parser.getEmittedCount()} 题`);
     }
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function generateFromIflytek(formData: JobFormData): Promise<QuizQuestion[]> {
-  if (!iflytek) throw new Error("iFlytek not configured");
+/**
+ * 讯飞通用模型（兜底）非流式生成。
+ * 主模型超时后调用，补齐剩余题目。
+ */
+async function generateFromFallbackLLM(formData: JobFormData): Promise<QuizQuestion[]> {
+  if (!iflytek) throw new Error("讯飞通用模型未配置");
 
   const controller = new AbortController();
-  // 给讯飞足够时间生成剩余题目（DeepSeek 超时后讯飞是主力补位）
   const timer = setTimeout(() => controller.abort(), 30_000);
 
   try {
@@ -161,7 +167,6 @@ async function generateFromIflytek(formData: JobFormData): Promise<QuizQuestion[
         ],
         temperature: 1.0,
         max_tokens: 4000,
-        // 不启用 response_format，由 prompt 约束兜底
       },
       { signal: controller.signal },
     );
@@ -172,7 +177,7 @@ async function generateFromIflytek(formData: JobFormData): Promise<QuizQuestion[
     const data = tryFixAndParse(jsonStr) as { questions?: { text: string; options: { label: string; text: string; primary?: string; secondary?: string }[] }[] };
 
     if (!data?.questions || !Array.isArray(data.questions)) {
-      throw new Error("Invalid iFlytek response structure");
+      throw new Error("讯飞通用模型返回格式异常");
     }
 
     return data.questions
