@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, FileSearch, LayoutList, ShieldCheck } from "lucide-react";
 import { StepIndicator } from "@/components/ui/step-indicator";
 import { Button } from "@/components/ui/button";
-import { INTRO_AUDIO_SRC, setHandoffAudio } from "@/lib/intro-audio-handoff";
+import { INTRO_AUDIO_SRC, setHandoffAudio, isIOS } from "@/lib/intro-audio-handoff";
 
 const cubicEase: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
@@ -51,7 +51,14 @@ export default function PreparingPage() {
       t += T_DONE_HOLD;
     }
     t += T_EXIT_DELAY;
-    sched(t, () => setReady(true));
+    // iOS：显示「开始」按钮，点击触发欢迎语（autoplay policy 限制）
+    // Android：保持自动跳转，intro 页自动播放（Android 无此限制，已验证无问题）
+    if (isIOS()) {
+      sched(t, () => setReady(true));
+    } else {
+      sched(t, () => setExiting(true));
+      sched(t + T_EXIT_DURATION, () => router.push("/intro"));
+    }
 
     return () => timers.forEach(clearTimeout);
   }, [router]);
