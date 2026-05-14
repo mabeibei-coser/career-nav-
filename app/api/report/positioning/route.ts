@@ -53,15 +53,14 @@ function validatePositionRec(
   if (isBadString(rec.position, 2)) return `${label}.position 缺失/占位符`;
   if (typeof rec.matchScore !== "number" || !Number.isFinite(rec.matchScore))
     return `${label}.matchScore 非数字`;
-  if (isBadString(rec.reasoning, 20))
-    return `${label}.reasoning 缺失/过短`;
-  if (!Array.isArray(rec.industries) || rec.industries.length < 2)
-    return `${label}.industries 至少 2 项`;
-  if (rec.industries.some((s) => isBadString(s, 2)))
-    return `${label}.industries 含占位符`;
+  // reasoning / industries 已从 UI 移除，软校验：有就格式对，没有也行
+  if (rec.reasoning !== undefined && typeof rec.reasoning !== "string")
+    return `${label}.reasoning 格式错误`;
+  if (rec.industries !== undefined && !Array.isArray(rec.industries))
+    return `${label}.industries 格式错误`;
   if (isBadString(rec.culture, 4)) return `${label}.culture 缺失`;
   if (isBadString(rec.teamRole, 2)) return `${label}.teamRole 缺失`;
-  // 新字段软校验：缺失不强制失败（LLM 渐进支持）
+  // 核心职责：建议有 5 条，但不强制失败
   if (rec.coreResponsibilities !== undefined && !Array.isArray(rec.coreResponsibilities))
     return `${label}.coreResponsibilities 格式错误`;
   if (rec.coreCompetencies !== undefined && !Array.isArray(rec.coreCompetencies))
@@ -111,13 +110,16 @@ const SYSTEM_PROMPT = `你是黄浦区职业咨询师。基于用户的简历、
 ${APPLICANT_BASELINE}
 
 【任务】生成"职业定位"，含：
-- primary: { position, matchScore (0-100), reasoning (岗位综述), industries[2-3], culture, teamRole, coreResponsibilities, coreCompetencies, fitReason }
+- primary: { position, matchScore (0-100), culture, teamRole, coreResponsibilities, coreCompetencies, fitReason }
 - secondary: 同结构，提供差异化路径
-新字段说明：
-  - reasoning: 岗位综述（80-120字），客观介绍这个岗位是什么、日常做什么、行业前景如何。用第三人称描述岗位本身，不要提及用户。
-  - coreResponsibilities: 5条该岗位的核心职责（每条5-10字，高度精炼，只写动作+对象，极简）
-  - coreCompetencies: 4-5项核心能力要求 { name: string, score: number }，score 是该岗位对此能力的要求程度（0-100），结合用户能力评分判断匹配度
-  - fitReason: 60-80字，简明点出 1-2 个最关键的匹配理由（结合用户经历或量表特点），语气正向但克制，不堆砌。
+字段说明：
+  - coreResponsibilities: **5 条**该岗位的核心职责
+    * 每条 **14-25 字**，**长度刻意不一致**形成错落感（不要 5 条全是 14 字或全是 25 字）
+    * 至少 2 条偏长（20-25 字），偏长的含简短场景或限定词
+    * 写法：动作 + 对象（+ 可选场景）
+    * 例：「组织跨部门协调会议并跟进结果」「对接外部供应商，谈判合同条款」「统筹年度预算编制与执行复盘」
+  - coreCompetencies: 4-5 项核心能力要求 { name: string, score: number }，score 是该岗位对此能力的要求程度（0-100），结合用户能力评分判断匹配度
+  - fitReason: 60-80 字，简明点出 1-2 个最关键的匹配理由（结合用户经历或量表特点），语气正向但克制，不堆砌
 
 【岗位推荐规则】（极重要 — 必须严格按 APPLICANT_BASELINE 的身份指南选岗）
 1. **应届（recent_grad）**：从 APPLICANT_BASELINE 中应届的"推荐方向"选岗
@@ -143,11 +145,9 @@ ${APPLICANT_BASELINE}
   "primary": {
     "position": "string",
     "matchScore": number,
-    "reasoning": "string",
-    "industries": ["string"],
     "culture": "string",
     "teamRole": "string",
-    "coreResponsibilities": ["5-10字", "5-10字", "5-10字", "5-10字", "5-10字"],
+    "coreResponsibilities": ["14-25 字 偏短", "14-25 字 偏短", "20-25 字 偏长", "14-25 字 中等", "20-25 字 偏长"],
     "coreCompetencies": [{ "name": "string", "score": number }],
     "fitReason": "string"
   },

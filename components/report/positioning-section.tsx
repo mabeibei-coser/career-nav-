@@ -135,7 +135,6 @@ function PositionCard({
         transition: { duration: 0.3, delay, ease },
       };
 
-  const safeIndustries = Array.isArray(rec.industries) ? rec.industries : [];
   const safeResp = Array.isArray(rec.coreResponsibilities)
     ? rec.coreResponsibilities.slice(0, 5)
     : [];
@@ -175,29 +174,6 @@ function PositionCard({
           {rec.position || "—"}
         </h3>
       </div>
-
-      {/* 岗位综述 */}
-      {rec.reasoning && (
-        <p className="text-[13.5px] leading-[1.75] text-[var(--navy-800)] mb-4">
-          {rec.reasoning}
-        </p>
-      )}
-
-      {/* 行业方向 */}
-      {safeIndustries.length > 0 && (
-        <div className="mb-4">
-          <div className="text-[11px] font-semibold tracking-wider uppercase text-[var(--report-ink-muted)] mb-2">
-            行业方向
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {safeIndustries.map((ind, i) => (
-              <span key={`${ind}-${i}`} className="report-chip">
-                {ind}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* 核心职责 */}
       {safeResp.length > 0 && (
