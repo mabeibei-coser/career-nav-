@@ -5,24 +5,24 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, ListChecks, Mic } from "lucide-react";
 import { playWithBlessedAudio, stopBlessedAudio } from "@/lib/audio-bless";
+import { consumeIntroTTS, isIOS, INTRO_TEXT } from "@/lib/intro-tts";
 import { Button } from "@/components/ui/button";
 import type { InterviewQuestion, JobFormData } from "@/lib/types";
-
-const INTRO_TEXT =
-  "你好，我是你的 AI 职业助理。接下来我们一起完成两个环节：第一，职业导航自测；第二，AI 语音访谈。你准备好了吗？准备好了，我们就开始测评。";
 
 const cubicEase: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 export default function IntroPage() {
   const router = useRouter();
-  const [ttsAudio, setTtsAudio] = useState<string | null>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showButton, setShowButton] = useState(false);
-  // iOS 自动播放失败 → orb 上显示播放图标
-  const [showPlayHint, setShowPlayHint] = useState(false);
+  // iOS 待首次点击播放（Android 走自动播放，此值恒为 false）
+  const [needsTap, setNeedsTap] = useState(false);
   const wasSpeakingRef = useRef(false);
   const ttsBase64Ref = useRef<string | null>(null);
+  const isIOSRef = useRef(false);
+  // iOS 点击播放时创建的裸 Audio 元素，handleStart 时需停掉
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
 
   /* Show CTA only after TTS finishes (or 5s fallback) */
   useEffect(() => {
@@ -41,6 +41,49 @@ export default function IntroPage() {
     return () => { clearTimeout(shortTimer); clearTimeout(longTimer); };
   }, []);
 
+  // 裸 Audio 同步播放（iOS 手势栈内 / 任意端重播）
+  const doPlay = useCallback((data: string) => {
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current = null;
+    }
+    const audio = new Audio("data:audio/mp3;base64," + data);
+    audio.volume = 1.0;
+    audio.preload = "auto";
+    // @ts-expect-error - playsInline 不在标准 d.ts 里但 iOS 支持
+    audio.playsInline = true;
+    currentAudioRef.current = audio;
+    setNeedsTap(false);
+    setIsSpeaking(true);
+    audio.onended = () => setIsSpeaking(false);
+    audio.onerror = (e) => {
+      console.warn("[intro] audio onerror:", e);
+      setIsSpeaking(false);
+    };
+    const p = audio.play();
+    if (p && typeof p.catch === "function") {
+      p.catch((err) => {
+        console.warn("[intro] audio.play() rejected:", err);
+        setIsSpeaking(false);
+        setNeedsTap(true); // 失败 → 放回点击引导
+      });
+    }
+  }, []);
+
+  // TTS 就绪后分流：Android 自动播放，iOS 显示点击引导
+  const onTTSReady = useCallback((data: string) => {
+    ttsBase64Ref.current = data;
+    if (isIOSRef.current) {
+      // iOS：autoplay policy 拦截，不自动播放，显示点击引导
+      setNeedsTap(true);
+    } else {
+      // Android：自动播放（Web Audio 归一化路径）
+      setIsSpeaking(true);
+      playWithBlessedAudio(data, () => setIsSpeaking(false));
+    }
+  }, []);
+
+  // mount：检测平台 + 取 TTS（优先消费 preparing 页预取）+ 预取访谈 Q1Q2
   useEffect(() => {
     if (typeof window === "undefined") return;
     const formDataStr = sessionStorage.getItem("formData");
@@ -49,19 +92,30 @@ export default function IntroPage() {
       return;
     }
     router.prefetch("/quiz");
+    isIOSRef.current = isIOS();
 
     let cancelled = false;
     const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
-    fetch(`${base}/api/interview/tts`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: INTRO_TEXT }),
-    })
-      .then((r) => r.json() as Promise<{ audioBase64?: string }>)
-      .then((data) => {
+    // TTS：优先消费 preparing 页预取的缓存，miss 则自己 fetch
+    consumeIntroTTS()
+      .then((audio) => {
         if (cancelled) return;
-        if (data?.audioBase64) setTtsAudio(data.audioBase64);
+        if (audio) {
+          onTTSReady(audio);
+          return;
+        }
+        // 预取未命中 → 自己 fetch 兜底
+        return fetch(`${base}/api/interview/tts`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: INTRO_TEXT }),
+        })
+          .then((r) => r.json() as Promise<{ audioBase64?: string }>)
+          .then((data) => {
+            if (cancelled) return;
+            if (data?.audioBase64) onTTSReady(data.audioBase64);
+          });
       })
       .catch(() => {});
 
@@ -92,60 +146,24 @@ export default function IntroPage() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [router, onTTSReady]);
 
-  // 自动播放 TTS：Android 正常走 Web Audio，iOS 可能失败
-  useEffect(() => {
-    if (!ttsAudio) return;
-    ttsBase64Ref.current = ttsAudio;
-    setTtsAudio(null);
-
-    const startTime = Date.now();
-    setIsSpeaking(true);
-
-    playWithBlessedAudio(ttsAudio, () => {
-      setIsSpeaking(false);
-      // TTS 朗读全文至少 4-5 秒，2 秒内结束说明 iOS 自动播放被拒
-      if (Date.now() - startTime < 2000) {
-        setShowPlayHint(true);
-      }
-    });
-  }, [ttsAudio]);
-
-  // iOS fallback：用户点 orb → 直接 new Audio().play()，同步在手势栈里
+  // orb 点击：iOS 首次播放 / 任意端重播，同步在手势栈里 new Audio().play()
   const handleOrbTap = useCallback(() => {
     if (isSpeaking) return;
     const data = ttsBase64Ref.current;
-    if (!data) return;
-
-    const audio = new Audio("data:audio/mp3;base64," + data);
-    audio.volume = 1.0;
-    // iOS Safari：playsInline 防止全屏切换；preload="auto" 让音频在 play() 前就开始加载
-    audio.preload = "auto";
-    // @ts-expect-error - playsInline 不在 HTMLAudioElement 标准 d.ts 里但 iOS 支持
-    audio.playsInline = true;
-    setIsSpeaking(true);
-    setShowPlayHint(false);
-    audio.onended = () => setIsSpeaking(false);
-    audio.onerror = (e) => {
-      console.warn("[intro] audio onerror:", e);
-      setIsSpeaking(false);
-    };
-    const playPromise = audio.play();
-    if (playPromise && typeof playPromise.catch === "function") {
-      playPromise.catch((err) => {
-        console.warn("[intro] audio.play() rejected:", err);
-        setIsSpeaking(false);
-        // 播放失败仍把提示放回来，让用户再点一次
-        setShowPlayHint(true);
-      });
-    }
-  }, [isSpeaking]);
+    if (!data) return; // 音频未就绪，不响应（onTTSReady 后会显示引导）
+    doPlay(data);
+  }, [isSpeaking, doPlay]);
 
   const handleStart = () => {
     if (submitting) return;
     setSubmitting(true);
-    stopBlessedAudio();
+    stopBlessedAudio(); // 停 Android Web Audio 路径
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause(); // 停 iOS 裸 Audio
+      currentAudioRef.current = null;
+    }
     setIsSpeaking(false);
     router.push("/quiz");
   };
@@ -169,12 +187,12 @@ export default function IntroPage() {
           onClick={handleOrbTap}
           aria-label="点击播放语音"
         >
-          <SoftOrb speaking={isSpeaking} showPlayHint={showPlayHint} />
+          <SoftOrb speaking={isSpeaking} needsTap={needsTap} />
         </motion.button>
 
-        {/* iOS 自动播放被拦时的文字提示，明确告诉用户要点 orb */}
+        {/* iOS 待点击播放引导（Android 走自动播放，needsTap 恒为 false） */}
         <AnimatePresence>
-          {showPlayHint && !isSpeaking && (
+          {needsTap && !isSpeaking && (
             <motion.button
               type="button"
               initial={{ opacity: 0, y: -4 }}
@@ -332,14 +350,14 @@ export default function IntroPage() {
 }
 
 /** Soft-edged orb with layered radial gradients — no overflow:hidden clipping. */
-function SoftOrb({ speaking, showPlayHint }: { speaking: boolean; showPlayHint?: boolean }) {
+function SoftOrb({ speaking, needsTap }: { speaking: boolean; needsTap?: boolean }) {
   return (
     <div
       className="relative flex items-center justify-center"
       style={{ width: 186, height: 186 }}
     >
-      {/* iOS 自动播放失败提示：播放图标 */}
-      {showPlayHint && !speaking && (
+      {/* iOS 待点击播放：orb 中央显示播放图标 */}
+      {needsTap && !speaking && (
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
