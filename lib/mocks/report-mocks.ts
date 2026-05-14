@@ -14,7 +14,7 @@ import type {
 // ① 总评：性格综述 + 四维雷达
 export const MOCK_OVERVIEW: Overview = {
   personality: {
-    type: "ISTJ · 可靠执行者",
+    type: "可靠型执行者",
     traits: ["专注", "务实", "细心", "可靠"],
     description:
       "你是一个倾向于先观察再行动的人，做事讲究稳妥与条理，不容易被情绪带偏。在熟悉的流程里你能稳定输出高质量成果，面试中展现的条理性会很加分；但遇到需要快速拍板或即兴发挥的场景，可能会显得犹豫偏慢。",

@@ -12,14 +12,18 @@ interface Props {
   total: number;
 }
 
-/** 从 "ENFJ · 温和型推动者" 中拆出 code 和 label */
-function parsePersonalityType(raw: string): { code: string; label: string } {
+/**
+ * 提取纯中文性格定位。
+ * personality.type 现为纯中文（如"稳健型执行者"）；此处兼容旧数据 ——
+ * 若残留 "ISTJ · 稳健型执行者" 这类字母代码前缀，剥掉只留中文。
+ */
+function extractPersonalityLabel(raw: string): string {
   const sep = raw.indexOf("·");
-  if (sep < 0) return { code: "", label: raw };
-  return {
-    code: raw.slice(0, sep).trim(),
-    label: raw.slice(sep + 1).trim(),
-  };
+  if (sep < 0) return raw.trim();
+  const before = raw.slice(0, sep).trim();
+  // · 前是纯字母代码（旧 MBTI 格式残留）→ 丢弃，只留中文部分
+  if (/^[A-Za-z]{2,6}$/.test(before)) return raw.slice(sep + 1).trim();
+  return raw.trim();
 }
 
 /** 四维双极谱配置：低分→左极，高分→右极 */
@@ -59,9 +63,7 @@ export function OverviewSection({ data, index, total }: Props) {
   const personality = data.personality;
   const traits = Array.isArray(personality?.traits) ? personality.traits : [];
   const fourDim = Array.isArray(data.fourDimRadar) ? data.fourDimRadar : [];
-  const { code: mbtiCode, label: mbtiLabel } = parsePersonalityType(
-    personality?.type ?? ""
-  );
+  const personalityLabel = extractPersonalityLabel(personality?.type ?? "");
 
   const fadeIn = exporting
     ? {}
@@ -179,15 +181,10 @@ export function OverviewSection({ data, index, total }: Props) {
             职业性格解读
           </div>
           <div className="rounded-xl border border-[var(--blue-100)] bg-white p-5 break-inside-avoid">
-            {/* Code + Chinese label */}
-            <div className="flex items-baseline gap-3 mb-3">
-              {mbtiCode && (
-                <span className="text-[28px] sm:text-[32px] font-black tracking-tight text-[var(--primary)] leading-none">
-                  {mbtiCode}
-                </span>
-              )}
-              <span className="text-[15px] sm:text-[16px] font-semibold text-[var(--navy-900)]">
-                {mbtiLabel || personality.type}
+            {/* 纯中文性格定位（不再展示 MBTI 字母代码） */}
+            <div className="mb-3">
+              <span className="text-[19px] sm:text-[22px] font-bold tracking-tight text-[var(--navy-900)]">
+                {personalityLabel || personality.type}
               </span>
             </div>
 
