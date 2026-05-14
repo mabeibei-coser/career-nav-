@@ -118,7 +118,10 @@ ${APPLICANT_BASELINE}
     * 至少 2 条偏长（20-25 字），偏长的含简短场景或限定词
     * 写法：动作 + 对象（+ 可选场景）
     * 例：「组织跨部门协调会议并跟进结果」「对接外部供应商，谈判合同条款」「统筹年度预算编制与执行复盘」
-  - coreCompetencies: 4-5 项核心能力要求 { name: string, score: number }，score 是该岗位对此能力的要求程度（0-100），结合用户能力评分判断匹配度
+  - coreCompetencies: **必须恰好 5 项**核心能力要求 { name: string, score: number }
+    * name：能力名称（4-6 字，如「沟通表达」「执行落地」「信息处理」「学习能力」「协作意识」「抗压韧性」等，按岗位实际需要选）
+    * score：该岗位对此能力的要求程度（0-100），结合用户能力评分判断匹配度
+    * 5 项 score 不要雷同，要有区分度
   - fitReason: 60-80 字，简明点出 1-2 个最关键的匹配理由（结合用户经历或量表特点），语气正向但克制，不堆砌
 
 【岗位推荐规则】（极重要 — 必须严格按 APPLICANT_BASELINE 的身份指南选岗）
@@ -148,7 +151,7 @@ ${APPLICANT_BASELINE}
     "culture": "string",
     "teamRole": "string",
     "coreResponsibilities": ["14-25 字 偏短", "14-25 字 偏短", "20-25 字 偏长", "14-25 字 中等", "20-25 字 偏长"],
-    "coreCompetencies": [{ "name": "string", "score": number }],
+    "coreCompetencies": [{ "name": "4-6字", "score": number }, "...恰好 5 项..."],
     "fitReason": "string"
   },
   "secondary": { ...同结构... }

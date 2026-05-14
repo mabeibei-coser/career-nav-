@@ -195,31 +195,11 @@ function PositionCard({
         </div>
       )}
 
-      {/* 核心能力：条形 + 雷达图 */}
+      {/* 核心能力匹配：雷达图 */}
       {safeComp.length > 0 && (
         <div className="mb-4">
           <div className="text-[11px] font-semibold tracking-wider uppercase text-[var(--report-ink-muted)] mb-3">
-            核心能力
-          </div>
-
-          {/* 横向条形（仅名称 + 条，无分数无等级） */}
-          <div className="space-y-2.5 mb-5">
-            {safeComp.map((c, i) => {
-              const pct = Math.max(2, Math.min(100, c.score));
-              return (
-                <div key={i} className="flex items-center gap-3">
-                  <span className="w-[5rem] shrink-0 text-[12.5px] text-[var(--navy-700)] text-right leading-tight">
-                    {c.name}
-                  </span>
-                  <div className="flex-1 h-[7px] rounded-full bg-[var(--blue-50)] overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-[var(--blue-500)]"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+            核心能力匹配
           </div>
 
           {/* 雷达图 */}
