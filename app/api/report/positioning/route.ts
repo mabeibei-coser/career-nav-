@@ -112,7 +112,7 @@ const SYSTEM_PROMPT = `你是黄浦区职业咨询师。基于用户的简历、
 - secondary: 同结构，提供差异化路径
 新字段说明：
   - reasoning: 岗位综述（80-120字），客观介绍这个岗位是什么、日常做什么、行业前景如何。用第三人称描述岗位本身，不要提及用户。
-  - coreResponsibilities: 5条该岗位的核心职责（每条10-15字，高度精炼，只写动作+对象）
+  - coreResponsibilities: 5条该岗位的核心职责（每条5-10字，高度精炼，只写动作+对象，极简）
   - coreCompetencies: 4-5项核心能力要求 { name: string, score: number }，score 是该岗位对此能力的要求程度（0-100），结合用户能力评分判断匹配度
   - fitReason: 60-80字，简明点出 1-2 个最关键的匹配理由（结合用户经历或量表特点），语气正向但克制，不堆砌。
 
@@ -139,7 +139,7 @@ const SYSTEM_PROMPT = `你是黄浦区职业咨询师。基于用户的简历、
     "industries": ["string"],
     "culture": "string",
     "teamRole": "string",
-    "coreResponsibilities": ["10-15字", "10-15字", "10-15字", "10-15字", "10-15字"],
+    "coreResponsibilities": ["5-10字", "5-10字", "5-10字", "5-10字", "5-10字"],
     "coreCompetencies": [{ "name": "string", "score": number }],
     "fitReason": "string"
   },

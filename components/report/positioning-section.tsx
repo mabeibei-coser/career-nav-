@@ -7,6 +7,103 @@ import { useReportRender } from "./report-context";
 import { cn } from "@/lib/utils";
 import type { Positioning, PositionRecommendation } from "@/lib/types";
 
+// ---- SVG 雷达图 ----
+
+function SvgRadar({ items }: { items: { name: string; score: number }[] }) {
+  if (items.length < 3) return null;
+  const SIZE = 220;
+  const cx = SIZE / 2;
+  const cy = SIZE / 2;
+  const R = 72; // 数据最外圈半径
+  const n = items.length;
+
+  const angle = (i: number) => (Math.PI * 2 * i) / n - Math.PI / 2;
+  const pt = (i: number, ratio: number) => ({
+    x: cx + R * ratio * Math.cos(angle(i)),
+    y: cy + R * ratio * Math.sin(angle(i)),
+  });
+
+  // 4 层同心多边形网格
+  const grid = [0.25, 0.5, 0.75, 1].map((ratio) => {
+    const pts = Array.from({ length: n }, (_, i) => pt(i, ratio));
+    return (
+      pts.map((p, j) => `${j === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ") + "Z"
+    );
+  });
+
+  // 轴线（中心 → 顶点）
+  const spokes = Array.from({ length: n }, (_, i) => {
+    const end = pt(i, 1);
+    return `M${cx},${cy}L${end.x.toFixed(1)},${end.y.toFixed(1)}`;
+  });
+
+  // 数据多边形
+  const dataPts = items.map((d, i) => pt(i, Math.max(0.05, d.score / 100)));
+  const dataPath =
+    dataPts.map((p, j) => `${j === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ") + "Z";
+
+  // 标签（轴顶点外侧）
+  const labelR = R + 20;
+  const labels = items.map((d, i) => {
+    const a = angle(i);
+    const x = cx + labelR * Math.cos(a);
+    const y = cy + labelR * Math.sin(a);
+    const eps = 0.2;
+    const anchor: "start" | "end" | "middle" =
+      Math.cos(a) > eps ? "start" : Math.cos(a) < -eps ? "end" : "middle";
+    return { text: d.name, x, y, anchor };
+  });
+
+  return (
+    <svg
+      width={SIZE}
+      height={SIZE}
+      viewBox={`0 0 ${SIZE} ${SIZE}`}
+      aria-hidden
+      className="overflow-visible"
+    >
+      {/* 网格 */}
+      {grid.map((d, i) => (
+        <path key={i} d={d} fill="none" stroke="var(--blue-100)" strokeWidth={i === 3 ? 1 : 0.7} />
+      ))}
+      {/* 轴线 */}
+      {spokes.map((d, i) => (
+        <path key={i} d={d} stroke="var(--blue-100)" strokeWidth="0.7" />
+      ))}
+      {/* 数据填充 */}
+      <path
+        d={dataPath}
+        fill="var(--blue-500)"
+        fillOpacity="0.18"
+        stroke="var(--blue-500)"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      {/* 数据节点 */}
+      {dataPts.map((p, i) => (
+        <circle key={i} cx={p.x} cy={p.y} r="3" fill="var(--blue-500)" />
+      ))}
+      {/* 标签 */}
+      {labels.map((l, i) => (
+        <text
+          key={i}
+          x={l.x}
+          y={l.y}
+          textAnchor={l.anchor}
+          dominantBaseline="central"
+          fontSize="11"
+          fill="var(--navy-700)"
+          fontFamily="inherit"
+        >
+          {l.text}
+        </text>
+      ))}
+    </svg>
+  );
+}
+
+// ---- 岗位卡片 ----
+
 interface Props {
   data: Positioning | null | undefined;
   index?: number;
@@ -39,6 +136,12 @@ function PositionCard({
       };
 
   const safeIndustries = Array.isArray(rec.industries) ? rec.industries : [];
+  const safeResp = Array.isArray(rec.coreResponsibilities)
+    ? rec.coreResponsibilities.slice(0, 5)
+    : [];
+  const safeComp = Array.isArray(rec.coreCompetencies)
+    ? rec.coreCompetencies.slice(0, 6)
+    : [];
 
   return (
     <Wrapper
@@ -96,12 +199,74 @@ function PositionCard({
         </div>
       )}
 
+      {/* 核心职责 */}
+      {safeResp.length > 0 && (
+        <div className="mb-4">
+          <div className="text-[11px] font-semibold tracking-wider uppercase text-[var(--report-ink-muted)] mb-2">
+            核心职责
+          </div>
+          <ul className="space-y-1.5">
+            {safeResp.map((r, i) => (
+              <li
+                key={i}
+                className="flex items-start gap-2 text-[13.5px] leading-[1.65] text-[var(--navy-800)]"
+              >
+                <span className="mt-[6px] shrink-0 size-1.5 rounded-full bg-[var(--blue-500)]" />
+                {r}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* 核心能力：条形 + 雷达图 */}
+      {safeComp.length > 0 && (
+        <div className="mb-4">
+          <div className="text-[11px] font-semibold tracking-wider uppercase text-[var(--report-ink-muted)] mb-3">
+            核心能力
+          </div>
+
+          {/* 横向条形（仅名称 + 条，无分数无等级） */}
+          <div className="space-y-2.5 mb-5">
+            {safeComp.map((c, i) => {
+              const pct = Math.max(2, Math.min(100, c.score));
+              return (
+                <div key={i} className="flex items-center gap-3">
+                  <span className="w-[5rem] shrink-0 text-[12.5px] text-[var(--navy-700)] text-right leading-tight">
+                    {c.name}
+                  </span>
+                  <div className="flex-1 h-[7px] rounded-full bg-[var(--blue-50)] overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-[var(--blue-500)]"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 雷达图 */}
+          <div className="flex justify-center py-2">
+            <SvgRadar items={safeComp} />
+          </div>
+        </div>
+      )}
+
       {/* 为什么适合你 */}
       {rec.fitReason && (
         <div className="rounded-xl border border-[var(--blue-200)] bg-gradient-to-br from-[var(--blue-50)] to-white p-4">
           <div className="flex items-center gap-1.5 mb-1.5">
-            <svg className="size-3.5 text-[var(--blue-500)]" viewBox="0 0 16 16" fill="none" aria-hidden>
-              <path d="M8 1l2.35 4.76L16 6.54l-4 3.9.94 5.5L8 13.27l-4.94 2.67.94-5.5-4-3.9 5.65-.78L8 1z" fill="currentColor" />
+            <svg
+              className="size-3.5 text-[var(--blue-500)]"
+              viewBox="0 0 16 16"
+              fill="none"
+              aria-hidden
+            >
+              <path
+                d="M8 1l2.35 4.76L16 6.54l-4 3.9.94 5.5L8 13.27l-4.94 2.67.94-5.5-4-3.9 5.65-.78L8 1z"
+                fill="currentColor"
+              />
             </svg>
             <span className="text-[12px] font-bold text-[var(--blue-700)]">
               为什么适合你
@@ -115,6 +280,8 @@ function PositionCard({
     </Wrapper>
   );
 }
+
+// ---- Section 入口 ----
 
 export default function PositioningSection({
   data,
