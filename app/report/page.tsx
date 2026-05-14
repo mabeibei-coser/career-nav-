@@ -376,45 +376,44 @@ export default function ReportPage() {
     <ReportRenderContext.Provider value={ctxValue}>
       <div className="report-shell pb-24 print:pb-0 print:bg-white">
         <div ref={reportContainerRef}>
-          {/* Header — 标题 + 元信息（生成时间 / 用户身份 / 目标岗位回显） */}
-          <div
-            data-pdf-section="header"
-            className="mx-auto max-w-5xl px-4 sm:px-6 pt-8 sm:pt-10 pb-6 print:pt-0"
-          >
-            <div className="flex flex-wrap items-center gap-2 mb-3">
-              <Badge
-                variant="secondary"
-                className="bg-[var(--blue-500)] text-white text-xs"
-              >
-                职业导航报告
-              </Badge>
-              <Badge variant="secondary" className="bg-white text-xs">
-                {position}
-              </Badge>
-              <Badge variant="secondary" className="bg-white text-xs">
-                {identityLabel}
-              </Badge>
-              {meta.formData.education && (
-                <Badge variant="secondary" className="bg-white text-xs">
-                  {EDUCATION_OPTIONS.find((o) => o.value === meta.formData.education)?.label ?? meta.formData.education}
-                </Badge>
-              )}
-              {hasResume && (
+          {/* Header — 标题 + 元信息（PDF 导出时跳过，避免空白首页） */}
+          {!isExporting && !isPdfMode && (
+            <div className="mx-auto max-w-5xl px-4 sm:px-6 pt-8 sm:pt-10 pb-6 print:pt-0">
+              <div className="flex flex-wrap items-center gap-2 mb-3">
                 <Badge
                   variant="secondary"
-                  className="bg-emerald-100 text-emerald-700 text-xs"
+                  className="bg-[var(--blue-500)] text-white text-xs"
                 >
-                  已结合简历
+                  职业导航报告
                 </Badge>
-              )}
+                <Badge variant="secondary" className="bg-white text-xs">
+                  {position}
+                </Badge>
+                <Badge variant="secondary" className="bg-white text-xs">
+                  {identityLabel}
+                </Badge>
+                {meta.formData.education && (
+                  <Badge variant="secondary" className="bg-white text-xs">
+                    {EDUCATION_OPTIONS.find((o) => o.value === meta.formData.education)?.label ?? meta.formData.education}
+                  </Badge>
+                )}
+                {hasResume && (
+                  <Badge
+                    variant="secondary"
+                    className="bg-emerald-100 text-emerald-700 text-xs"
+                  >
+                    已结合简历
+                  </Badge>
+                )}
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-[var(--navy-950)] tracking-tight mb-2">
+                {displayName} · 职业导航报告
+              </h1>
+              <p className="text-xs sm:text-sm text-[var(--report-ink-muted)]">
+                生成于 {dateLabel} · 共 5 个模块
+              </p>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-[var(--navy-950)] tracking-tight mb-2">
-              {displayName} · 职业导航报告
-            </h1>
-            <p className="text-xs sm:text-sm text-[var(--report-ink-muted)]">
-              生成于 {dateLabel} · 共 5 个模块
-            </p>
-          </div>
+          )}
 
           {/* 5 个 Section 纵向堆叠 */}
           <div className="mx-auto max-w-5xl px-4 sm:px-6 space-y-4 sm:space-y-5">
