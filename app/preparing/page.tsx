@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { FileSearch, LayoutList, ShieldCheck } from "lucide-react";
+import { ArrowRight, FileSearch, LayoutList, ShieldCheck } from "lucide-react";
 import { StepIndicator } from "@/components/ui/step-indicator";
+import { Button } from "@/components/ui/button";
+import { INTRO_AUDIO_SRC, setHandoffAudio } from "@/lib/intro-audio-handoff";
 
 const cubicEase: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
@@ -25,6 +27,8 @@ export default function PreparingPage() {
   const [activeStep, setActiveStep] = useState(-1);
   const [doneCount, setDoneCount] = useState(0);
   const [exiting, setExiting] = useState(false);
+  // 准备动画跑完 → 显示「开始」按钮（不再自动跳转）
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -47,11 +51,26 @@ export default function PreparingPage() {
       t += T_DONE_HOLD;
     }
     t += T_EXIT_DELAY;
-    sched(t, () => setExiting(true));
-    sched(t + T_EXIT_DURATION, () => router.push("/intro"));
+    sched(t, () => setReady(true));
 
     return () => timers.forEach(clearTimeout);
   }, [router]);
+
+  // 「开始」按钮：在用户手势同步栈里启动欢迎语播放，交接给 intro 页接管
+  const handleStart = () => {
+    if (exiting) return;
+    // iOS autoplay policy：播放必须在用户手势的同步栈里。
+    // 这里同步 new Audio().play()，再把元素交接给 intro 页。
+    const audio = new Audio(INTRO_AUDIO_SRC);
+    audio.volume = 1.0;
+    audio.preload = "auto";
+    // @ts-expect-error - playsInline 不在标准 d.ts 里但 iOS 支持
+    audio.playsInline = true;
+    audio.play().catch(() => {}); // 失败也继续跳转，intro 页有 fallback
+    setHandoffAudio(audio);
+    setExiting(true);
+    setTimeout(() => router.push("/intro"), T_EXIT_DURATION);
+  };
 
   const progress = doneCount / STEPS.length;
 
@@ -160,6 +179,29 @@ export default function PreparingPage() {
                 </div>
               </motion.div>
             </div>
+
+            {/* 准备完成 → 「开始」按钮（点击时在手势栈内启动欢迎语播放） */}
+            <AnimatePresence>
+              {ready && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, ease: cubicEase }}
+                  className="w-full max-w-md pb-[max(1rem,env(safe-area-inset-bottom))]"
+                >
+                  <Button
+                    onClick={handleStart}
+                    disabled={exiting}
+                    className="w-full h-12 text-base font-medium bg-gradient-to-br from-[var(--blue-500)] to-[var(--blue-700)] hover:brightness-110 active:brightness-95 text-white rounded-xl btn-glow transition-all duration-300 disabled:opacity-75 disabled:cursor-wait"
+                  >
+                    <span className="flex items-center gap-2">
+                      开始
+                      <ArrowRight className="size-4" strokeWidth={2} />
+                    </span>
+                  </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
       </AnimatePresence>

@@ -5,22 +5,14 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, ListChecks, Mic } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  INTRO_AUDIO_SRC,
+  takeHandoffAudio,
+  isIOS,
+} from "@/lib/intro-audio-handoff";
 import type { InterviewQuestion, JobFormData } from "@/lib/types";
 
 const cubicEase: [number, number, number, number] = [0.22, 1, 0.36, 1];
-
-// intro 欢迎语：构建时由 scripts/generate-tts-cache.mjs 预生成的静态音频
-const INTRO_AUDIO_SRC = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/audio/intro-welcome.mp3`;
-
-// iOS 设备检测（含 iPadOS 13+ 伪装成 Mac 的情况）
-function isIOS(): boolean {
-  if (typeof navigator === "undefined") return false;
-  const ua = navigator.userAgent;
-  return (
-    /iP(hone|ad|od)/.test(ua) ||
-    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
-  );
-}
 
 export default function IntroPage() {
   const router = useRouter();
@@ -51,7 +43,7 @@ export default function IntroPage() {
     return () => { clearTimeout(shortTimer); clearTimeout(longTimer); };
   }, []);
 
-  // 播放欢迎语静态音频（Android mount 时自动调用 / iOS 点击调用）
+  // 播放欢迎语静态音频（fallback 路径：直接访问 /intro 时用）
   const doPlay = useCallback(() => {
     if (currentAudioRef.current) {
       currentAudioRef.current.pause();
@@ -80,7 +72,27 @@ export default function IntroPage() {
     }
   }, []);
 
-  // mount：检测平台 + 分流播放（Android 自动 / iOS 待点击）+ 预取访谈 Q1Q2
+  // 接管 preparing 页「开始」按钮交接过来的、已在播放的 audio 元素
+  const adoptAudio = useCallback((audio: HTMLAudioElement) => {
+    currentAudioRef.current = audio;
+    setNeedsTap(false);
+    audio.onended = () => setIsSpeaking(false);
+    audio.onerror = () => setIsSpeaking(false);
+    if (audio.ended) {
+      setIsSpeaking(false); // 交接时已播完（极快情况）
+    } else {
+      setIsSpeaking(true);
+      // 若手势栈 play() 当时被拒（audio.paused），补一次兜底
+      if (audio.paused) {
+        audio.play().catch(() => {
+          setIsSpeaking(false);
+          if (isIOSRef.current) setNeedsTap(true);
+        });
+      }
+    }
+  }, []);
+
+  // mount：接管交接音频 / fallback 分流 + 预取访谈 Q1Q2
   useEffect(() => {
     if (typeof window === "undefined") return;
     const formDataStr = sessionStorage.getItem("formData");
@@ -91,11 +103,17 @@ export default function IntroPage() {
     router.prefetch("/quiz");
     isIOSRef.current = isIOS();
 
-    // 欢迎语是静态音频文件：Android 自动播放，iOS 受 autoplay policy 限制改为点击播放
-    if (isIOSRef.current) {
-      setNeedsTap(true);
+    // 正常流程：接管 preparing 页交接来的、已在播放的欢迎语音频
+    const handoff = takeHandoffAudio();
+    if (handoff) {
+      adoptAudio(handoff);
     } else {
-      doPlay();
+      // fallback：直接访问 /intro（刷新 / 分享链接）
+      if (isIOSRef.current) {
+        setNeedsTap(true);
+      } else {
+        doPlay();
+      }
     }
 
     let cancelled = false;
@@ -128,7 +146,7 @@ export default function IntroPage() {
     return () => {
       cancelled = true;
     };
-  }, [router, doPlay]);
+  }, [router, doPlay, adoptAudio]);
 
   // orb 点击：iOS 首次播放 / 任意端重播，同步在手势栈里
   const handleOrbTap = useCallback(() => {
