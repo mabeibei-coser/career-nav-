@@ -578,7 +578,7 @@ export default function LoadingPage() {
           className="text-center mb-6"
         >
           <h1 className="text-2xl sm:text-3xl font-bold text-[var(--navy-950)] tracking-tight mb-2 text-balance">
-            正在生成你的定位报告
+            正在生成你的职业导航报告
           </h1>
           <p className="text-[13px] sm:text-sm text-[var(--muted-foreground)]">
             评估包含 5 个模块，部分模块在答题阶段已开始预热

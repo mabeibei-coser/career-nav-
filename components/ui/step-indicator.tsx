@@ -4,7 +4,7 @@ import { Fragment } from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export const REPORT_STEPS = ["填写职业意向", "快速职业评估", "生成职业报告"] as const;
+export const REPORT_STEPS = ["填写职业意向", "快速职业评估", "生成职业导航报告"] as const;
 
 interface StepIndicatorProps {
   /** 0-indexed current step (0=form, 1=quiz/interview, 2=loading/report) */

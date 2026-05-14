@@ -296,22 +296,45 @@ export function buildQuizUserPrompt(formData: JobFormData): string {
 }
 
 export function normalizeQuestion(
-  raw: { text: string; options: { label: string; text: string; primary?: string; secondary?: string }[] },
+  raw: { text?: string; options?: unknown },
   index: number,
 ): QuizQuestion {
+  // 容错：LLM 在长 prompt 下可能输出变体结构 ——
+  // 标准 {label,text,primary} / 缺 label 的 {text} / 纯字符串 "文本"
+  const rawOpts: unknown[] = Array.isArray(raw.options) ? raw.options : [];
   return {
     id: `SJT-${String(index + 1).padStart(2, "0")}`,
-    text: raw.text.trim(),
-    options: (["A", "B", "C", "D"] as const).map((label) => {
-      const opt = raw.options.find((o) => o.label === label);
+    text: (raw.text ?? "").trim(),
+    options: (["A", "B", "C", "D"] as const).map((label, idx) => {
+      // 1) 优先按 label 字段匹配；2) 匹配不到则按位置兜底
+      let opt: unknown = rawOpts.find(
+        (o) =>
+          o != null &&
+          typeof o === "object" &&
+          (o as { label?: unknown }).label === label,
+      );
+      if (opt === undefined) opt = rawOpts[idx];
+
+      let text = "";
+      let primary: string | undefined;
+      let secondary: string | undefined;
+      if (typeof opt === "string") {
+        text = opt;
+      } else if (opt != null && typeof opt === "object") {
+        const o = opt as { text?: unknown; primary?: unknown; secondary?: unknown };
+        text = typeof o.text === "string" ? o.text : "";
+        primary = typeof o.primary === "string" ? o.primary : undefined;
+        secondary = typeof o.secondary === "string" ? o.secondary : undefined;
+      }
+
       const weights: Partial<Record<AbilityKey, number>> = {};
-      if (opt?.primary && VALID_ABILITIES.has(opt.primary)) {
-        weights[opt.primary as AbilityKey] = 1.0;
+      if (primary && VALID_ABILITIES.has(primary)) {
+        weights[primary as AbilityKey] = 1.0;
       }
-      if (opt?.secondary && VALID_ABILITIES.has(opt.secondary) && opt.secondary !== opt?.primary) {
-        weights[opt.secondary as AbilityKey] = 0.5;
+      if (secondary && VALID_ABILITIES.has(secondary) && secondary !== primary) {
+        weights[secondary as AbilityKey] = 0.5;
       }
-      return { label, text: opt?.text?.trim() ?? "", weights };
+      return { label, text: text.trim(), weights };
     }),
   };
 }
@@ -369,9 +392,14 @@ export class ProgressiveQuestionParser {
           const objStr = this.buffer.slice(this.objStart, i + 1);
           try {
             const parsed = JSON.parse(objStr);
-            if (parsed.text && Array.isArray(parsed.options)) {
-              results.push(normalizeQuestion(parsed, this.emittedCount));
-              this.emittedCount++;
+            if (parsed.text && Array.isArray(parsed.options) && parsed.options.length >= 2) {
+              const q = normalizeQuestion(parsed, this.emittedCount);
+              // 守卫：normalize 后至少 2 个选项有文本，否则丢弃 → 让 fallback 补完整题
+              const validOpts = q.options.filter((o) => o.text.length > 0).length;
+              if (validOpts >= 2) {
+                results.push(q);
+                this.emittedCount++;
+              }
             }
           } catch {
             // incomplete or malformed, skip
