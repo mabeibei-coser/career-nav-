@@ -91,6 +91,31 @@ function playBlessedFallback(base64: string, onEnded?: () => void) {
   a.play().catch(() => currentFallbackOnEnded?.());
 }
 
+/**
+ * 用 bless 过的 <audio> 元素播放一个 URL 音频（静态文件）。
+ * Android 关键路径：表单页 blessAudio() 把这个元素「激活」过，之后复用同一个
+ * 元素改 src 再 play() 不需要新手势 —— intro 页据此实现 Android 自动播放。
+ * 返回 true = 已派发播放；false = 没 bless 过（调用方需自行降级）。
+ */
+export function playBlessedUrl(url: string, onEnded?: () => void): boolean {
+  if (typeof window === "undefined") return false;
+  stopSilenceKeepAlive();
+  if (!blessedAudio) return false;
+  const a = blessedAudio;
+  a.pause();
+  a.currentTime = 0;
+  currentFallbackOnEnded = () => {
+    currentFallbackOnEnded = null;
+    onEnded?.();
+  };
+  a.onended = () => currentFallbackOnEnded?.();
+  a.onerror = () => currentFallbackOnEnded?.();
+  a.src = url;
+  a.volume = 1.0;
+  a.play().catch(() => currentFallbackOnEnded?.());
+  return true;
+}
+
 export function stopBlessedAudio() {
   stopSilenceKeepAlive();
   if (currentHandle) {

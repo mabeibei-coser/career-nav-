@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, ListChecks, Mic } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { playBlessedUrl, stopBlessedAudio } from "@/lib/audio-bless";
 import {
   INTRO_AUDIO_SRC,
   takeHandoffAudio,
@@ -103,15 +104,20 @@ export default function IntroPage() {
     router.prefetch("/quiz");
     isIOSRef.current = isIOS();
 
-    // 正常流程：接管 preparing 页交接来的、已在播放的欢迎语音频
+    // iOS 正常流程：接管 preparing 页交接来的、已在播放的欢迎语音频
     const handoff = takeHandoffAudio();
     if (handoff) {
       adoptAudio(handoff);
+    } else if (isIOSRef.current) {
+      // iOS fallback：直接访问 /intro（刷新 / 分享链接），显示点击引导
+      setNeedsTap(true);
     } else {
-      // fallback：直接访问 /intro（刷新 / 分享链接）
-      if (isIOSRef.current) {
-        setNeedsTap(true);
+      // Android：复用表单页 bless 过的 <audio> 元素自动播放静态音频
+      const played = playBlessedUrl(INTRO_AUDIO_SRC, () => setIsSpeaking(false));
+      if (played) {
+        setIsSpeaking(true);
       } else {
+        // 没 bless 过（直接访问 /intro）→ 裸 Audio 兜底
         doPlay();
       }
     }
@@ -157,8 +163,9 @@ export default function IntroPage() {
   const handleStart = () => {
     if (submitting) return;
     setSubmitting(true);
+    stopBlessedAudio(); // 停 Android 的 blessed <audio> 路径
     if (currentAudioRef.current) {
-      currentAudioRef.current.pause();
+      currentAudioRef.current.pause(); // 停 iOS / 兜底的裸 Audio
       currentAudioRef.current = null;
     }
     setIsSpeaking(false);
