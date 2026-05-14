@@ -168,8 +168,11 @@ export function tryFixAndParse(jsonStr: string): unknown {
     // Normalize full-width comma between elements
     fixed = fixed.replace(/，/g, ",");
     try { return JSON.parse(fixed); } catch { /* continue */ }
-    // Strip control characters (except \n \r \t) that break JSON strings
-    fixed = fixed.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, "");
+    // Strip ALL control chars (incl. \n \r \t → 空格)：JSON 结构不依赖它们，
+    // 而字符串字面量内未转义的 \n\r\t 正是 "Bad control character" 报错元凶
+    fixed = fixed.replace(/[\x00-\x1f]/g, " ");
+    // 清理非法转义：\ 后不是合法 JSON 转义字符 → 去掉反斜杠（修 "Bad escaped character"）
+    fixed = fixed.replace(/\\(?!["\\/bfnrtu])/g, "");
     // Remove trailing commas before ] or }
     fixed = fixed.replace(/,\s*([}\]])/g, "$1");
     // Insert missing commas between adjacent elements: }" or ]" or ""{
