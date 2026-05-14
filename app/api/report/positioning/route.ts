@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  APPLICANT_BASELINE,
   buildBaseContext,
   callWithFallback,
   COMPANY_NO_NAME_NOTE,
@@ -107,6 +108,8 @@ function normalizePositioning(d: Positioning): Positioning {
 
 const SYSTEM_PROMPT = `你是黄浦区职业咨询师。基于用户的简历、身份、四维 + 能力评分、目标岗位，推荐首选 + 次选岗位。
 
+${APPLICANT_BASELINE}
+
 【任务】生成"职业定位"，含：
 - primary: { position, matchScore (0-100), reasoning (岗位综述), industries[2-3], culture, teamRole, coreResponsibilities, coreCompetencies, fitReason }
 - secondary: 同结构，提供差异化路径
@@ -116,13 +119,18 @@ const SYSTEM_PROMPT = `你是黄浦区职业咨询师。基于用户的简历、
   - coreCompetencies: 4-5项核心能力要求 { name: string, score: number }，score 是该岗位对此能力的要求程度（0-100），结合用户能力评分判断匹配度
   - fitReason: 60-80字，简明点出 1-2 个最关键的匹配理由（结合用户经历或量表特点），语气正向但克制，不堆砌。
 
-【岗位推荐规则】（极重要）
-1. **根据简历自适应水位**：简历强（多年相关经验、技能扎实）→ 可推荐稍高一档；简历薄（应届无经验、长空白期）→ 推荐入门门槛
-2. **不预设硬规则**（不要拍脑袋说"5 年以上"或"管理岗"），由你判断
-3. **不推荐用户简历完全不匹配的岗位**（如简历无技术背景却推算法工程师 / 产品总监 / 投行分析师 / 数据科学家）
-4. **recent_grad（应届毕业生）**：可以推荐 0 经验入门岗、青年见习类岗位
-5. **young_unemployed（35岁以下求职者）/ general_unemployed（35岁以上求职者）**：避免嘲讽空白期；推荐操作 / 支持 / 服务类岗位为主，除非简历显示有过硬技能
-6. 用户填的 targetPosition 是参考但不是强约束 —— 如果简历方向与 target 不一致，可推一个 target 方向 + 一个简历方向
+【岗位推荐规则】（极重要 — 必须严格按 APPLICANT_BASELINE 的身份指南选岗）
+1. **应届（recent_grad）**：从 APPLICANT_BASELINE 中应届的"推荐方向"选岗
+2. **35-（young_unemployed）**：从 APPLICANT_BASELINE 中 35- 的"推荐方向"选岗
+3. **35+（general_unemployed）**：**必须从 APPLICANT_BASELINE 的"白名单"中选**，严禁跳出；若简历显示有过硬技能（如行业经验深、技术工种、经营经验），可推该白名单内的"师傅/讲师/顾问/店长"档位
+4. 根据简历自适应水位：简历强可推稍高一档；简历薄推入门门槛
+5. 不推荐用户简历完全不匹配的岗位
+6. 用户填的 targetPosition 是参考但不是强约束 —— 如果 35+ 用户填了不合身份的 target（如"产品经理"），仍按白名单推，可以在 reasoning 里委婉提到"该岗位招聘倾向年轻群体，结合您的过往经验，更适合从下列方向切入"
+
+【fitReason 措辞红线】
+- 严格遵守 APPLICANT_BASELINE 的禁用词清单
+- 不写"虽然年龄..."、"虽然没经验..."、"虽然空白期..."等转折句
+- 直接讲匹配点，不必给"安慰"
 
 【硬约束】
 - ${COMPANY_NO_NAME_NOTE}（不指名具体公司）

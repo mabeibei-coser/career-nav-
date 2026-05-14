@@ -147,12 +147,15 @@ export async function generateSJTQuestions(
 
   const contextHint =
     identity === "recent_grad"
-      ? "场景偏学校、实习、兼职、社团、校园求职"
-      : "场景偏职场：团队协作、任务交接、向上管理、数据处理等";
+      ? "场景偏学校、实习、兼职、社团、校园求职；可适度涉及标准职场术语"
+      : identity === "young_unemployed"
+        ? "场景偏主流职场 + 求职过渡 + 日常协作；避免特定行业黑话"
+        : "**场景去精英化**：用日常生活 / 临时工作 / 服务场景 / 家庭 / 跨年龄沟通；**严禁**出现 KPI / 客户简报 / 项目 / 跨部门 / 汇报等精英职场词，可用「组里人」「管事的」「店里老板」代替";
 
   // 精简 prompt：只要文本 + 维度标签，不要数值权重
   // 输出 tokens ≈ 900（原来 ≈ 2500），完成时间从 >25s → ~6-10s
   const systemPrompt = `你是职业测评专家。根据求职者背景生成 6 道情境判断题（SJT）。
+**面向群体可能是长期求职、断续就业的人员，不全是精英职场背景**。
 
 【严格输出格式（只输出 JSON，不得有任何其他内容）】
 {"questions":[{"text":"情境描述40-80字","options":[{"label":"A","text":"行为描述20-45字","primary":"execution","secondary":"stress"},{"label":"B","text":"行为描述20-45字","primary":"communication"},{"label":"C","text":"行为描述20-45字","primary":"collaboration"},{"label":"D","text":"行为描述20-45字","primary":"data","secondary":"learning"}]},共6题]}
@@ -163,7 +166,9 @@ communication / collaboration / execution / learning / data / stress
 约束：
 - 共 6 道题，每题恰好 4 个选项（A B C D）
 - 6 道题的 primary 合计：每个维度至少出现 1 次
-- secondary 可不填；如果填，必须和 primary 不同`;
+- secondary 可不填；如果填，必须和 primary 不同
+- 措辞温和、不带审判感、不带焦虑或紧迫感
+- 不出现 MBTI / 大五 / 霍兰德等专有名词`;
 
   const userPrompt = `求职者背景：
 - 身份：${identityLabel}（${contextHint}）

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { getDeepseekClient, DEEPSEEK_MODEL } from "@/lib/deepseek";
 import iflytek, { IFLYTEK_MODEL } from "@/lib/iflytek";
 import {
-  FALLBACK_QUESTIONS,
+  getFallbackQuestionsForIdentity,
   JSON_CONSTRAINT_PREFIX,
   buildQuizSystemPrompt,
   buildQuizUserPrompt,
@@ -77,10 +77,11 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // 第三轮：两个模型都没出满 → 静态题库兜底
+      // 第三轮：两个模型都没出满 → 静态题库兜底（按身份选去精英化版或通用版）
       if (emittedCount < TOTAL_QUESTIONS) {
         console.info(`[quiz/stream] 静态兜底: 已生成 ${emittedCount} 题，补 ${TOTAL_QUESTIONS - emittedCount} 题`);
-        for (const q of FALLBACK_QUESTIONS.slice(emittedCount)) {
+        const fallback = getFallbackQuestionsForIdentity(formData.identity);
+        for (const q of fallback.slice(emittedCount)) {
           emitQuestion(q);
         }
       }
@@ -192,7 +193,8 @@ function mockSSEResponse(): Response {
   const encoder = new TextEncoder();
   const readable = new ReadableStream({
     start(controller) {
-      for (const q of FALLBACK_QUESTIONS) {
+      // E2E mock 默认用通用版（test 不区分身份）
+      for (const q of getFallbackQuestionsForIdentity(undefined)) {
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify({ type: "question", question: q })}\n\n`),
         );
