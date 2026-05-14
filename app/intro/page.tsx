@@ -120,11 +120,26 @@ export default function IntroPage() {
 
     const audio = new Audio("data:audio/mp3;base64," + data);
     audio.volume = 1.0;
+    // iOS Safari：playsInline 防止全屏切换；preload="auto" 让音频在 play() 前就开始加载
+    audio.preload = "auto";
+    // @ts-expect-error - playsInline 不在 HTMLAudioElement 标准 d.ts 里但 iOS 支持
+    audio.playsInline = true;
     setIsSpeaking(true);
     setShowPlayHint(false);
     audio.onended = () => setIsSpeaking(false);
-    audio.onerror = () => setIsSpeaking(false);
-    audio.play().catch(() => setIsSpeaking(false));
+    audio.onerror = (e) => {
+      console.warn("[intro] audio onerror:", e);
+      setIsSpeaking(false);
+    };
+    const playPromise = audio.play();
+    if (playPromise && typeof playPromise.catch === "function") {
+      playPromise.catch((err) => {
+        console.warn("[intro] audio.play() rejected:", err);
+        setIsSpeaking(false);
+        // 播放失败仍把提示放回来，让用户再点一次
+        setShowPlayHint(true);
+      });
+    }
   }, [isSpeaking]);
 
   const handleStart = () => {
@@ -143,19 +158,41 @@ export default function IntroPage() {
       <div className="fixed -bottom-20 -left-32 w-80 h-80 rounded-full bg-gradient-to-tr from-[var(--blue-300)] to-[var(--blue-100)] opacity-30 blur-3xl" />
 
       <div className="relative z-10 min-h-screen flex flex-col items-center px-5 py-6 sm:py-8">
-        {/* Soft orb — no hard edges; tap to replay TTS on iOS */}
-        <motion.div
+        {/* Soft orb — 真 button 元素，iOS Safari 对 tap 更可靠 */}
+        <motion.button
+          type="button"
           initial={{ opacity: 0, scale: 0.85 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8, ease: cubicEase }}
-          className="mt-4 sm:mt-8 mb-4 sm:mb-5 cursor-pointer"
+          className="mt-4 sm:mt-8 mb-2 sm:mb-3 cursor-pointer bg-transparent border-0 p-0 outline-none focus-visible:ring-2 focus-visible:ring-[var(--blue-400)] rounded-full"
+          style={{ WebkitTapHighlightColor: "transparent", touchAction: "manipulation" }}
           onClick={handleOrbTap}
-          role="button"
           aria-label="点击播放语音"
-          tabIndex={0}
         >
           <SoftOrb speaking={isSpeaking} showPlayHint={showPlayHint} />
-        </motion.div>
+        </motion.button>
+
+        {/* iOS 自动播放被拦时的文字提示，明确告诉用户要点 orb */}
+        <AnimatePresence>
+          {showPlayHint && !isSpeaking && (
+            <motion.button
+              type="button"
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              onClick={handleOrbTap}
+              style={{ WebkitTapHighlightColor: "transparent", touchAction: "manipulation" }}
+              className="mb-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/90 border border-[var(--blue-200)] text-[12px] font-medium text-[var(--blue-700)] shadow-sm"
+              aria-label="点击播放语音"
+            >
+              <svg className="size-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                <path d="M8 5v14l11-7z" />
+              </svg>
+              点击播放欢迎语
+            </motion.button>
+          )}
+        </AnimatePresence>
 
         <motion.h1
           initial={{ opacity: 0, y: 12 }}
