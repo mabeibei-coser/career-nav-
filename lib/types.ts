@@ -117,7 +117,6 @@ export interface InterviewAnswer {
 export interface InterviewQ1Q2 {
   Q1?: string;
   Q2?: string;
-  Q3?: string; // 访谈第三题答案（题库固定题，进报告）
 }
 
 // ========== 报告类型 ==========
@@ -179,6 +178,7 @@ export interface PositionRecommendation {
   coreResponsibilities?: string[];                              // 核心职责（5 条，每条 10-15 字）
   coreCompetencies?: { name: string; score: number }[];       // 核心能力要求（4-5 项，score 0-100）
   fitReason?: string;                                          // 为什么适合你（30-60 字）
+  specialNote?: string;                                        // 特别注意：具体的自我提升建议（40-80 字）
 }
 
 export interface Positioning {
@@ -194,6 +194,7 @@ export interface ResumeDiagnosis {
     detail: string;
     priority: "high" | "medium" | "low";
     quotedSnippet?: string;
+    revisionExample?: string;  // 修订示例：针对本条问题的 1 个具体改法（40-80 字）
   }[];
   suggestions: {
     title: string;
