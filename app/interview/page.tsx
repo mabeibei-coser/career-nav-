@@ -348,21 +348,16 @@ export default function InterviewPage() {
     [player, setPhaseSync],
   );
 
-  // ---------- 问候语 TTS 就绪时自动播放（无需用户点击按钮） ----------
+  // ---------- 问候语 TTS 就绪后立刻显示「开始访谈」按钮 ----------
+  // 不再自动播放：iOS 的 autoplay policy 拦截 useEffect 里的 play 调用（不在
+  // 用户手势栈内）。改为按钮显示后由 handleStart 在用户点击的同步手势栈里
+  // 直接 new Audio().play() —— 这是 iOS user activation 唯一认可的路径。
 
   useEffect(() => {
-    if (!greetingTTSReady || phaseRef.current !== "greeting") return;
-    const audio = greetingAudioRef.current;
-    if (!audio) return;
-    setGreetingTTSReady(false);
-    setGreetingPlaying(true);
-    afterGreetingRef.current = () => {
-      setGreetingPlaying(false);
+    if (greetingTTSReady && !greetingDone) {
       setGreetingDone(true);
-      greetingAudioRef.current = null;
-    };
-    player.play(audio);
-  }, [greetingTTSReady, player]);
+    }
+  }, [greetingTTSReady, greetingDone]);
 
   // 问候 TTS 超时兜底：
   // - TTS 未到达（greetingPlaying=false）：5s 后直接显示按钮
@@ -412,33 +407,71 @@ export default function InterviewPage() {
     player.stop();
     unlockAudio();
 
-    if (!navigator.mediaDevices?.getUserMedia) {
-      addDebug("mediaDevices 不可用");
-      setVoiceSupported(false);
-      proceedToQ1();
-      return;
-    }
-
-    setPhaseSync("requesting-mic");
-    addDebug("getUserMedia 调用中...");
-    navigator.mediaDevices
-      .getUserMedia({ audio: true })
-      .then(
-        (stream) => {
-          addDebug("getUserMedia 成功 ✓");
-          recorder.adoptStream(stream);
-          setPhaseSync("mic-granted");
-          return new Promise<void>((r) => setTimeout(r, 600));
-        },
-        (err) => {
-          addDebug("getUserMedia 失败: " + (err?.name || "unknown"));
-          setVoiceSupported(false);
-        },
-      )
-      .then(() => {
-        addDebug("进入题目");
+    // 异步链路：mic 申请 + 进入 Q1
+    const continueAfterGreeting = () => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        addDebug("mediaDevices 不可用");
+        setVoiceSupported(false);
         proceedToQ1();
-      });
+        return;
+      }
+      setPhaseSync("requesting-mic");
+      addDebug("getUserMedia 调用中...");
+      navigator.mediaDevices
+        .getUserMedia({ audio: true })
+        .then(
+          (stream) => {
+            addDebug("getUserMedia 成功 ✓");
+            recorder.adoptStream(stream);
+            setPhaseSync("mic-granted");
+            return new Promise<void>((r) => setTimeout(r, 600));
+          },
+          (err) => {
+            addDebug("getUserMedia 失败: " + (err?.name || "unknown"));
+            setVoiceSupported(false);
+          },
+        )
+        .then(() => {
+          addDebug("进入题目");
+          proceedToQ1();
+        });
+    };
+
+    // ★ iOS 关键：在用户点击的同步手势栈里 new Audio().play() 播问候语
+    // useAudioPlayer.play 内部走 decodeAndNormalize 的 Promise 异步链，
+    // 已脱离手势栈 → iOS 必拦。这里改为同步裸 Audio 播放（iOS 认可的唯一路径）。
+    const greetingBase64 = greetingAudioRef.current;
+    if (greetingBase64) {
+      setGreetingPlaying(true);
+      const a = new Audio("data:audio/mp3;base64," + greetingBase64);
+      a.volume = 1.0;
+      a.preload = "auto";
+      // @ts-expect-error - playsInline 不在标准 d.ts 但 iOS 支持
+      a.playsInline = true;
+      greetingAudioRef.current = null;
+      a.onended = () => {
+        setGreetingPlaying(false);
+        continueAfterGreeting();
+      };
+      a.onerror = (e) => {
+        addDebug("问候语 onerror");
+        console.warn("[interview] greeting onerror:", e);
+        setGreetingPlaying(false);
+        continueAfterGreeting();
+      };
+      const p = a.play();
+      if (p && typeof p.catch === "function") {
+        p.catch((err) => {
+          console.warn("[interview] 问候语播放被拒:", err);
+          addDebug("问候语播放被拒，跳过");
+          setGreetingPlaying(false);
+          continueAfterGreeting(); // 失败也继续，不卡流程
+        });
+      }
+    } else {
+      // 问候语未就绪 → 直接进 mic 流程
+      continueAfterGreeting();
+    }
   }, [recorder, proceedToQ1, setPhaseSync, addDebug, player]);
 
   // 题目就绪后，如果当前还在 loading-q，自动朗读第一题
