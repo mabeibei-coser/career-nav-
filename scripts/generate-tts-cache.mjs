@@ -54,9 +54,9 @@ if (!APP_KEY || !ACCESS_KEY) {
 const INTRO_WELCOME =
   "你好，我是你的 AI 职业助理。接下来我们一起完成两个环节：第一，职业导航自测；第二，AI 语音访谈。你准备好了吗？准备好了，我们就开始测评。";
 
-// 题库数据（与 lib/interview-questions.ts 保持一致；变更后两边同步）
+// 访谈页问候语（与 app/interview/page.tsx 的 GREETING_TEXT 保持一致；变更后两边同步）
 const GREETING =
-  "你好，我是你的 AI 职业顾问，接下来我会问你两个问题，帮你完善这份定位报告。";
+  "下面进入语音访谈，一共 4 个问题，请按住麦克风作答。";
 
 const BANK = [
   { id: "q1", text: "你选择现在这个求职方向，最打动你的是什么？是看好它的前景、觉得自己擅长、还是有别的原因？聊聊你的想法。" },
@@ -106,19 +106,34 @@ async function generate(name, text) {
 }
 
 async function main() {
+  // 可选 CLI 过滤：node scripts/generate-tts-cache.mjs greeting → 只生成 greeting.mp3
+  // 不传参 → 全量生成（注意：每次 TTS API 调用产生的 mp3 字节略有差异，会让 git diff 显示
+  // 所有 mp3 都变；只想更新某一个时请显式传参）
+  const only = process.argv[2];
+
   console.log("生成静态 MP3 缓存");
   console.log("speaker:", SPEAKER);
   console.log("输出目录:", OUT_DIR);
+  if (only) console.log("仅生成:", only);
   console.log("");
 
-  await generate("intro-welcome", INTRO_WELCOME);
-  await generate("greeting", GREETING);
-  for (const q of BANK) {
-    await generate(q.id, q.text);
+  const targets = [
+    { name: "intro-welcome", text: INTRO_WELCOME },
+    { name: "greeting", text: GREETING },
+    ...BANK.map((q) => ({ name: q.id, text: q.text })),
+  ];
+  const filtered = only ? targets.filter((t) => t.name === only) : targets;
+  if (only && filtered.length === 0) {
+    console.error(`✗ 未找到目标: ${only}（可选：${targets.map((t) => t.name).join(", ")}）`);
+    process.exit(1);
+  }
+
+  for (const t of filtered) {
+    await generate(t.name, t.text);
   }
 
   console.log("");
-  console.log(`✓ 已生成 ${BANK.length + 2} 个 MP3`);
+  console.log(`✓ 已生成 ${filtered.length} 个 MP3`);
 }
 
 main().catch((e) => {

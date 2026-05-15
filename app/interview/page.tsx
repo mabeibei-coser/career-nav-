@@ -12,6 +12,12 @@ import { useAudioRecorder } from "@/lib/hooks/use-audio-recorder";
 import { useAudioVisualizer } from "@/lib/hooks/use-audio-visualizer";
 import { useAudioPlayer } from "@/lib/hooks/use-audio-player";
 import { ensureAudioCtxUnlocked } from "@/lib/audio-normalizer";
+import { playBlessedUrl, stopBlessedAudio } from "@/lib/audio-bless";
+import {
+  INTERVIEW_GREETING_AUDIO_SRC,
+  takeHandoffAudio,
+  isIOS,
+} from "@/lib/intro-audio-handoff";
 import { buildQ3Q4 } from "@/lib/interview-questions";
 import { startAfterQ2 } from "@/lib/report-bg-runner";
 import type {
@@ -108,12 +114,12 @@ export default function InterviewPage() {
   const [voiceSupported, setVoiceSupported] = useState(true);
   const [skipConfirm, setSkipConfirm] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
-  /** TTS 就绪信号：触发 auto-play useEffect */
-  const [greetingTTSReady, setGreetingTTSReady] = useState(false);
   /** 问候语正在播放中（用于 UI 状态） */
   const [greetingPlaying, setGreetingPlaying] = useState(false);
   /** 问候语已播完（或超时），可显示"开始访谈"按钮 */
   const [greetingDone, setGreetingDone] = useState(false);
+  /** iOS 直接访问 /interview（无 handoff）→ 显示「点击播放欢迎语」 */
+  const [needsTap, setNeedsTap] = useState(false);
 
   // 持有 form/scoring/quizAnswers，触发 startAfterQ2 时不再读 sessionStorage
   const formDataRef = useRef<JobFormData | null>(null);
@@ -129,26 +135,75 @@ export default function InterviewPage() {
   const recorder = useAudioRecorder();
   const { amplitude } = useAudioVisualizer(recorder.mediaStream);
 
-  // TTS 播放（AI 读题 + 问候语）
+  // TTS 播放（AI 读题）
   const speakingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // 问候语音频（后台预合成，点击"开始访谈"后播放）
-  const greetingAudioRef = useRef<string | null>(null);
-  // 问候语播放结束后要执行的回调（用 ref 避免 handlePlayerEnded → presentQuestion 循环依赖）
-  const afterGreetingRef = useRef<(() => void) | null>(null);
+  // 当前播放的问候语 audio 元素（来自 quiz 页交接 / fallback 自播）
+  const greetingAudioElemRef = useRef<HTMLAudioElement | null>(null);
+  const isIOSRef = useRef(false);
 
   const handlePlayerEnded = useCallback(() => {
-    // 问候语结束：执行预设回调（进入 Q1）
-    if (afterGreetingRef.current) {
-      const cb = afterGreetingRef.current;
-      afterGreetingRef.current = null;
-      cb();
-      return;
-    }
     if (phaseRef.current === "speaking-q") {
       setPhaseSync("ready");
     }
   }, [setPhaseSync]);
   const player = useAudioPlayer(handlePlayerEnded);
+
+  // ---------- 问候语：接管 / 自播 / 重播 ----------
+
+  // 接管 quiz 页交接来的、已在播放的 audio 元素
+  const adoptGreetingAudio = useCallback((audio: HTMLAudioElement) => {
+    greetingAudioElemRef.current = audio;
+    setNeedsTap(false);
+    const onEnd = () => {
+      setGreetingPlaying(false);
+      setGreetingDone(true);
+    };
+    audio.onended = onEnd;
+    audio.onerror = onEnd;
+    if (audio.ended) {
+      onEnd();
+    } else {
+      setGreetingPlaying(true);
+      // 手势栈 play() 当时被拒（element 暂停状态）→ 补一次兜底
+      if (audio.paused) {
+        audio.play().catch(() => {
+          setGreetingPlaying(false);
+          if (isIOSRef.current) setNeedsTap(true);
+          else setGreetingDone(true);
+        });
+      }
+    }
+  }, []);
+
+  // 直接 new Audio() 播问候语（fallback 路径：iOS 点击重播 / 直接访问 /interview）
+  const playGreetingFresh = useCallback(() => {
+    if (greetingAudioElemRef.current) {
+      greetingAudioElemRef.current.pause();
+      greetingAudioElemRef.current = null;
+    }
+    const audio = new Audio(INTERVIEW_GREETING_AUDIO_SRC);
+    audio.volume = 1.0;
+    audio.preload = "auto";
+    // @ts-expect-error - playsInline 不在标准 d.ts 里但 iOS 支持
+    audio.playsInline = true;
+    greetingAudioElemRef.current = audio;
+    setNeedsTap(false);
+    setGreetingPlaying(true);
+    const onEnd = () => {
+      setGreetingPlaying(false);
+      setGreetingDone(true);
+    };
+    audio.onended = onEnd;
+    audio.onerror = onEnd;
+    const p = audio.play();
+    if (p && typeof p.catch === "function") {
+      p.catch(() => {
+        setGreetingPlaying(false);
+        if (isIOSRef.current) setNeedsTap(true);
+        else setGreetingDone(true);
+      });
+    }
+  }, []);
 
   // ---------- 初始化：读 sessionStorage + 拉 Q1Q2 + 抽 Q3Q4 ----------
 
@@ -204,26 +259,30 @@ export default function InterviewPage() {
     }
 
     setPhaseSync("greeting");
+    isIOSRef.current = isIOS();
 
-    // 提前预热音频会话（部分 Android 设备首次 audio.play 音量偏低；
-    // 在这里先触发一次静音播放，让 MediaSession 在问候语开始前初始化）
-    unlockAudio();
-
-    // 后台预合成问候语语音，用户点"开始访谈"时播放
-    const BASE_PATH_GREET = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
-    fetch(`${BASE_PATH_GREET}/api/interview/tts`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: GREETING_TEXT }),
-    })
-      .then((r) => r.json() as Promise<{ audioBase64?: string }>)
-      .then((data) => {
-        if (data?.audioBase64) {
-          greetingAudioRef.current = data.audioBase64;
-          setGreetingTTSReady(true); // 触发 auto-play effect
-        }
-      })
-      .catch(() => {}); // 失败静默降级，不影响主流程
+    // 问候语自动播放：优先接管 quiz 页交接来的、已在播放的 audio 元素
+    // （quiz handleSubmit 在用户手势栈里 new Audio().play() 后传过来）。
+    // SPA client-side 导航不会中断已在播放的 <audio>，体感等同自动播放。
+    const handoff = takeHandoffAudio();
+    if (handoff) {
+      adoptGreetingAudio(handoff);
+    } else if (isIOSRef.current) {
+      // iOS fallback：直接访问 /interview（刷新 / 分享链接）→ 显示点击引导
+      setNeedsTap(true);
+    } else {
+      // Android：复用 form 页 bless 过的 <audio> 元素自动播放静态音频
+      const played = playBlessedUrl(INTERVIEW_GREETING_AUDIO_SRC, () => {
+        setGreetingPlaying(false);
+        setGreetingDone(true);
+      });
+      if (played) {
+        setGreetingPlaying(true);
+      } else {
+        // 没 bless 过（dev 直接访问）→ 裸 Audio 兜底
+        playGreetingFresh();
+      }
+    }
 
     // 阶段 1：拉 Q1Q2（优先消费 /intro 预热结果；没有再 API 动态生成）
     (async () => {
@@ -340,20 +399,9 @@ export default function InterviewPage() {
     [player, setPhaseSync],
   );
 
-  // ---------- 问候语 TTS 就绪后立刻显示「开始访谈」按钮 ----------
-  // 不再自动播放：iOS 的 autoplay policy 拦截 useEffect 里的 play 调用（不在
-  // 用户手势栈内）。改为按钮显示后由 handleStart 在用户点击的同步手势栈里
-  // 直接 new Audio().play() —— 这是 iOS user activation 唯一认可的路径。
-
-  useEffect(() => {
-    if (greetingTTSReady && !greetingDone) {
-      setGreetingDone(true);
-    }
-  }, [greetingTTSReady, greetingDone]);
-
-  // 问候 TTS 超时兜底：
-  // - TTS 未到达（greetingPlaying=false）：5s 后直接显示按钮
-  // - TTS 在播但一直没结束（音频卡住）：15s 后强制显示按钮
+  // ---------- 问候语兜底：音频卡住或 fallback 时强制显示「开始访谈」按钮 ----------
+  // - 正在播：15s（典型 ~5s 一句话，留余量）
+  // - 未播：5s 兜底（iOS 待点击 / Android 自动播失败 / e2e mock 等场景）
   useEffect(() => {
     if (phase !== "greeting" || greetingDone) return;
     const ms = greetingPlaying ? 15_000 : 5000;
@@ -396,75 +444,50 @@ export default function InterviewPage() {
   const handleStart = useCallback(() => {
     if (phaseRef.current !== "greeting" && phaseRef.current !== "idle") return;
     addDebug("handleStart 触发");
+    // 问候语已在 mount 时自动播放（quiz 页交接 / Android 自动 / iOS fallback 点击播）
+    // 这里点击 = 用户手势，可以同步停掉问候语 + 解锁 AudioContext 给 player.play 用
     player.stop();
+    stopBlessedAudio();
+    if (greetingAudioElemRef.current) {
+      greetingAudioElemRef.current.pause();
+      greetingAudioElemRef.current = null;
+    }
+    setGreetingPlaying(false);
     unlockAudio();
 
-    // 异步链路：mic 申请 + 进入 Q1
-    const continueAfterGreeting = () => {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        addDebug("mediaDevices 不可用");
-        setVoiceSupported(false);
-        proceedToQ1();
-        return;
-      }
-      setPhaseSync("requesting-mic");
-      addDebug("getUserMedia 调用中...");
-      navigator.mediaDevices
-        .getUserMedia({ audio: true })
-        .then(
-          (stream) => {
-            addDebug("getUserMedia 成功 ✓");
-            recorder.adoptStream(stream);
-            setPhaseSync("mic-granted");
-            return new Promise<void>((r) => setTimeout(r, 600));
-          },
-          (err) => {
-            addDebug("getUserMedia 失败: " + (err?.name || "unknown"));
-            setVoiceSupported(false);
-          },
-        )
-        .then(() => {
-          addDebug("进入题目");
-          proceedToQ1();
-        });
-    };
-
-    // ★ iOS 关键：在用户点击的同步手势栈里 new Audio().play() 播问候语
-    // useAudioPlayer.play 内部走 decodeAndNormalize 的 Promise 异步链，
-    // 已脱离手势栈 → iOS 必拦。这里改为同步裸 Audio 播放（iOS 认可的唯一路径）。
-    const greetingBase64 = greetingAudioRef.current;
-    if (greetingBase64) {
-      setGreetingPlaying(true);
-      const a = new Audio("data:audio/mp3;base64," + greetingBase64);
-      a.volume = 1.0;
-      a.preload = "auto";
-      // @ts-expect-error - playsInline 不在标准 d.ts 但 iOS 支持
-      a.playsInline = true;
-      greetingAudioRef.current = null;
-      a.onended = () => {
-        setGreetingPlaying(false);
-        continueAfterGreeting();
-      };
-      a.onerror = (e) => {
-        addDebug("问候语 onerror");
-        console.warn("[interview] greeting onerror:", e);
-        setGreetingPlaying(false);
-        continueAfterGreeting();
-      };
-      const p = a.play();
-      if (p && typeof p.catch === "function") {
-        p.catch((err) => {
-          console.warn("[interview] 问候语播放被拒:", err);
-          addDebug("问候语播放被拒，跳过");
-          setGreetingPlaying(false);
-          continueAfterGreeting(); // 失败也继续，不卡流程
-        });
-      }
-    } else {
-      // 问候语未就绪 → 直接进 mic 流程
-      continueAfterGreeting();
+    if (!navigator.mediaDevices?.getUserMedia) {
+      addDebug("mediaDevices 不可用");
+      setVoiceSupported(false);
+      proceedToQ1();
+      return;
     }
+    setPhaseSync("requesting-mic");
+    addDebug("getUserMedia 调用中...");
+    navigator.mediaDevices
+      .getUserMedia({ audio: true })
+      .then(
+        (stream) => {
+          addDebug("getUserMedia 成功 ✓");
+          recorder.adoptStream(stream);
+          setPhaseSync("mic-granted");
+          return new Promise<void>((r) => setTimeout(r, 600));
+        },
+        (err) => {
+          addDebug("getUserMedia 失败: " + (err?.name || "unknown"));
+          setVoiceSupported(false);
+        },
+      )
+      .then(() => {
+        addDebug("进入题目");
+        proceedToQ1();
+      });
   }, [recorder, proceedToQ1, setPhaseSync, addDebug, player]);
+
+  // iOS fallback: 用户首次点击 orb / 点击播放欢迎语按钮
+  const handleGreetingTap = useCallback(() => {
+    if (greetingPlaying) return;
+    playGreetingFresh();
+  }, [greetingPlaying, playGreetingFresh]);
 
   // 题目就绪后，如果当前还在 loading-q，自动朗读第一题
   useEffect(() => {
@@ -484,6 +507,12 @@ export default function InterviewPage() {
       if (speakingTimeoutRef.current) {
         clearTimeout(speakingTimeoutRef.current);
         speakingTimeoutRef.current = null;
+      }
+      // 卸载时停掉问候语，避免离开页面后还在播
+      stopBlessedAudio();
+      if (greetingAudioElemRef.current) {
+        greetingAudioElemRef.current.pause();
+        greetingAudioElemRef.current = null;
       }
     };
   }, []);
@@ -820,7 +849,17 @@ export default function InterviewPage() {
         <div className="w-full flex flex-col items-center gap-2 min-h-[100px]">
           <AnimatePresence mode="wait">
             {(phase === "greeting" || phase === "idle") && (
-              greetingDone ? (
+              greetingPlaying ? (
+                <motion.div
+                  key="greeting-playing"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="text-[13px] text-slate-400 animate-pulse"
+                >
+                  AI 正在介绍，请稍候…
+                </motion.div>
+              ) : greetingDone ? (
                 <motion.button
                   key="start-btn"
                   initial={{ opacity: 0, y: 6 }}
@@ -832,15 +871,30 @@ export default function InterviewPage() {
                 >
                   开始访谈
                 </motion.button>
+              ) : needsTap ? (
+                <motion.button
+                  key="play-greeting-btn"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  onClick={handleGreetingTap}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white/90 border border-[var(--blue-200)] text-[13px] font-medium text-[var(--blue-700)] shadow-sm"
+                  aria-label="点击播放欢迎语"
+                >
+                  <svg className="size-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                  点击播放欢迎语
+                </motion.button>
               ) : (
                 <motion.div
-                  key="greeting-speaking"
+                  key="greeting-preparing"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   className="text-[13px] text-slate-400 animate-pulse"
                 >
-                  {greetingPlaying ? "AI 正在介绍，请稍候…" : "AI 正在准备…"}
+                  AI 正在准备…
                 </motion.div>
               )
             )}

@@ -17,6 +17,8 @@
 
 // intro 欢迎语静态音频（构建时由 scripts/generate-tts-cache.mjs 预生成）
 export const INTRO_AUDIO_SRC = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/audio/intro-welcome.mp3`;
+// 访谈页问候语静态音频（同上脚本预生成；与 app/interview/page.tsx 的 GREETING_TEXT 同步）
+export const INTERVIEW_GREETING_AUDIO_SRC = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/audio/greeting.mp3`;
 
 let handoffAudio: HTMLAudioElement | null = null;
 

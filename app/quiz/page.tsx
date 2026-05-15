@@ -16,6 +16,10 @@ import {
 } from "@/lib/quiz-prefetch";
 
 import { blessAudio } from "@/lib/audio-bless";
+import {
+  INTERVIEW_GREETING_AUDIO_SRC,
+  setHandoffAudio,
+} from "@/lib/intro-audio-handoff";
 import type { JobFormData, QuizAnswer, QuizQuestion } from "@/lib/types";
 
 const cubicEase: [number, number, number, number] = [0.22, 1, 0.36, 1];
@@ -178,8 +182,19 @@ export default function QuizPage() {
     if (!allAnswered || !formData || submitting) return;
     setSubmitting(true);
     // iOS AudioContext 续期：form 页 blessAudio() 后用户答 8 题可能花几十秒，
-    // iOS 会挂起 AudioContext；这里用最近的手势重新解锁，保证 interview 页能 autoplay。
+    // iOS 会挂起 AudioContext；这里用最近的手势重新解锁。
     blessAudio();
+
+    // iOS autoplay policy：interview 页问候语必须在用户手势同步栈里 play()，
+    // 跨页交接给 interview 页接管 onended（与 preparing → intro 同款 handoff 模式）。
+    const audio = new Audio(INTERVIEW_GREETING_AUDIO_SRC);
+    audio.volume = 1.0;
+    audio.preload = "auto";
+    // @ts-expect-error - playsInline 不在标准 d.ts 里但 iOS 支持
+    audio.playsInline = true;
+    audio.play().catch(() => {}); // 失败也继续跳转，interview 页有 fallback
+    setHandoffAudio(audio);
+
     try {
       const finalAnswers = persistAnswers(answers, questions);
       const scoring = scoreQuiz(finalAnswers, questions);
