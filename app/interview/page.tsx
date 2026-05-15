@@ -349,7 +349,8 @@ export default function InterviewPage() {
   );
 
   // ---------- 问候语 TTS 就绪时自动播放（无需用户点击按钮） ----------
-
+  // 利用前一页（quiz "完成"按钮）的手势 + blessAudio() 解锁的 AudioContext，
+  // interview 页加载后可以直接 autoplay（Web Audio 路径不需要新手势）
   useEffect(() => {
     if (!greetingTTSReady || phaseRef.current !== "greeting") return;
     const audio = greetingAudioRef.current;
