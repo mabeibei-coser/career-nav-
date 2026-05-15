@@ -211,7 +211,7 @@ function PositionCard({
 
       {/* 为什么适合你 */}
       {rec.fitReason && (
-        <div className="rounded-xl border border-[var(--blue-200)] bg-gradient-to-br from-[var(--blue-50)] to-white p-4">
+        <div className="rounded-xl border border-[var(--blue-200)] bg-gradient-to-br from-[var(--blue-50)] to-white p-4 mb-3">
           <div className="flex items-center gap-1.5 mb-1.5">
             <svg
               className="size-3.5 text-[var(--blue-500)]"
@@ -230,6 +230,35 @@ function PositionCard({
           </div>
           <p className="text-[13.5px] leading-[1.75] text-[var(--navy-800)]">
             {rec.fitReason}
+          </p>
+        </div>
+      )}
+
+      {/* 特别注意 */}
+      {rec.specialNote && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <svg
+              className="size-3.5 text-amber-600"
+              viewBox="0 0 16 16"
+              fill="none"
+              aria-hidden
+            >
+              <path
+                d="M8 1.5L14.5 13H1.5L8 1.5Z"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinejoin="round"
+              />
+              <path d="M8 6v3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              <circle cx="8" cy="11" r="0.75" fill="currentColor" />
+            </svg>
+            <span className="text-[12px] font-bold text-amber-700">
+              特别注意
+            </span>
+          </div>
+          <p className="text-[13.5px] leading-[1.75] text-amber-900">
+            {rec.specialNote}
           </p>
         </div>
       )}

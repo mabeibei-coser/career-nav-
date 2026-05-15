@@ -229,6 +229,8 @@ export default function ResumeDiagnosisSection({ data, hasResume, index = 4, tot
                     : "medium";
                 const tone = PRIORITY_TONE[priority];
 
+                const revisionExample = issue?.revisionExample?.trim() || "";
+
                 return (
                   <Item
                     key={i}
@@ -255,6 +257,16 @@ export default function ResumeDiagnosisSection({ data, hasResume, index = 4, tot
                           原文
                         </span>
                         {snippet}
+                      </div>
+                    )}
+                    {revisionExample && (
+                      <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3.5 py-3">
+                        <div className="text-[11px] font-semibold tracking-wider uppercase text-emerald-700 mb-1.5">
+                          修订示例
+                        </div>
+                        <p className="text-[13px] leading-[1.7] text-emerald-900">
+                          {revisionExample}
+                        </p>
                       </div>
                     )}
                   </Item>

@@ -114,14 +114,15 @@ function normalizePositioning(d: Positioning, scoring: ScoringResult): Positioni
     const comps: { name: string; score: number }[] = uniqueNames.map(
       (name) => ({ name, score: abilityMatchMap.get(name)! })
     );
-    // 不足 5 项 → 用量表里还没选中的维度按「原始分」从高到低补齐（优先补强项）
-    if (comps.length < 5) {
+    // 不足 4 项 → 用量表里还没选中的维度按「原始分」从高到低补齐（优先补强项）
+    // 允许 4-5 项，让 primary 和 secondary 因 LLM 的不同选择产生差异
+    if (comps.length < 4) {
       const picked = new Set(comps.map((c) => c.name));
       const remaining = [...scoring.ability]
         .filter((a) => !picked.has(a.name))
         .sort((x, y) => (abilityRawMap.get(y.name)! - abilityRawMap.get(x.name)!));
       for (const a of remaining) {
-        if (comps.length >= 5) break;
+        if (comps.length >= 4) break;
         comps.push({ name: a.name, score: abilityMatchMap.get(a.name)! });
       }
     }
@@ -140,6 +141,10 @@ function normalizePositioning(d: Positioning, scoring: ScoringResult): Positioni
         typeof rec.fitReason === "string" && rec.fitReason.trim().length > 0
           ? rec.fitReason.trim()
           : undefined,
+      specialNote:
+        typeof rec.specialNote === "string" && rec.specialNote.trim().length > 0
+          ? rec.specialNote.trim()
+          : undefined,
     };
   };
   return {
@@ -153,26 +158,30 @@ const SYSTEM_PROMPT = `你是黄浦区职业咨询师。基于用户的简历、
 ${APPLICANT_BASELINE}
 
 【任务】生成"职业定位"，含：
-- primary: { position, matchScore (0-100), culture, teamRole, coreResponsibilities, coreCompetencies, fitReason }
+- primary: { position, matchScore (0-100), culture, teamRole, coreResponsibilities, coreCompetencies, fitReason, specialNote }
 - secondary: 同结构，提供差异化路径
 字段说明：
+  - position: 给出**具体的细分岗位名称**，而不是宽泛的方向词
+    * 正确示例：「薪酬绩效专员」「招聘协调员」「客户服务专员（银行网点）」「理赔处理员」
+    * 错误示例：「人力资源」「金融类工作」「行政管理」（太宽泛，没有指向）
+    * 如果 targetPosition 是细分岗位（如「薪酬专员」），首选可以是它或其升阶版（「薪酬绩效专员 / 薪酬主管」）
   - coreResponsibilities: **5 条**该岗位的核心职责
     * 每条 **14-25 字**，**长度刻意不一致**形成错落感（不要 5 条全是 14 字或全是 25 字）
     * 至少 2 条偏长（20-25 字），偏长的含简短场景或限定词
     * 写法：动作 + 对象（+ 可选场景）
     * 例：「组织跨部门协调会议并跟进结果」「对接外部供应商，谈判合同条款」「统筹年度预算编制与执行复盘」
-  - coreCompetencies: **恰好 5 项**该岗位最看重的核心能力，格式 { name: string }
-    * **name 必须从以下 6 个固定能力维度里选 5 个**（一字不差，不要自创名称、不要加字）：
+  - coreCompetencies: **4-5 项**该岗位最看重的核心能力，格式 { name: string }
+    * **name 必须从以下 6 个固定能力维度里选 4-5 个**（一字不差，不要自创名称、不要加字）：
       沟通表达 / 协作意识 / 执行落地 / 学习能力 / 信息处理 / 压力适应
-    * 选维度规则（6 选 5，只排除 1 个）：在「该岗位看重」的前提下，
-      **优先排除"用户量表能力分最低 且 该岗位相对不那么依赖"的那个维度** ——
-      让选中的 5 维尽量是用户的相对强项，使推荐岗位与用户能力结构契合
-      （这是"首选/次选推荐"成立的前提，雷达图才不会自相矛盾）
-    * 岗位差异体现在「选了哪 5 个维度」：不同岗位看重的能力不同
-      （如技术岗常选 信息处理+学习能力+执行落地，服务岗常选 沟通表达+协作意识+压力适应），
-      primary 和 secondary 的维度组合应不同
+    * 选维度规则：在「该岗位看重」的前提下，优先选用户的相对强项维度
+    * **primary 和 secondary 的维度组合必须有 1-2 个不同**，体现两个岗位的能力侧重差异
+      （如技术岗常选 信息处理+学习能力+执行落地，服务岗常选 沟通表达+协作意识+压力适应）
     * **不要输出 score 字段** —— 雷达图分数由系统统一计算填充，确保逻辑自洽
   - fitReason: 60-80 字，简明点出 1-2 个最关键的匹配理由（结合用户经历或量表特点），语气正向但克制，不堆砌
+  - specialNote: 针对**这个岗位**给出 1 条**具体可执行**的自我提升建议，40-70 字
+    * 要具体到行动层面（不要空洞如"努力提升沟通能力"）
+    * 例：「建议每周精读 2-3 个岗位 JD，提炼行业高频词汇，并结合自身经历用 STAR 格式写一个对应案例，积累面试素材」
+    * 例：「可利用 12333 免费培训资源参加劳动法规基础课，补齐人事操作的合规短板，这是 HR 助理岗的硬门槛」
 
 【岗位推荐规则】（极重要 — 必须严格按 APPLICANT_BASELINE 的身份指南选岗）
 1. **应届（recent_grad）**：从 APPLICANT_BASELINE 中应届的"推荐方向"选岗
@@ -204,15 +213,16 @@ ${APPLICANT_BASELINE}
 输出 JSON schema:
 {
   "primary": {
-    "position": "string",
+    "position": "具体细分岗位名",
     "matchScore": number,
     "culture": "string",
     "teamRole": "string",
-    "coreResponsibilities": ["14-25 字 偏短", "14-25 字 偏短", "20-25 字 偏长", "14-25 字 中等", "20-25 字 偏长"],
-    "coreCompetencies": [{ "name": "六维之一" }, { "name": "六维之一" }, { "name": "六维之一" }, { "name": "六维之一" }, { "name": "六维之一" }],
-    "fitReason": "string"
+    "coreResponsibilities": ["14-25字偏短", "14-25字偏短", "20-25字偏长", "14-25字中等", "20-25字偏长"],
+    "coreCompetencies": [{ "name": "六维之一" }, { "name": "六维之一" }, { "name": "六维之一" }, { "name": "六维之一" }],
+    "fitReason": "60-80字",
+    "specialNote": "40-70字具体可执行建议"
   },
-  "secondary": { ...同结构... }
+  "secondary": { ...同结构，coreCompetencies 与 primary 至少 1-2 个不同维度... }
 }`;
 
 function buildScoringContext(scoring: ScoringResult): string {
