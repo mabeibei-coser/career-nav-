@@ -23,6 +23,16 @@ const nextConfig: NextConfig = {
       ],
     },
   ],
+  redirects: async () => {
+    // career-nav admin 已下线 → 301 跳到 career-report 统一 admin
+    // 未配置 CAREER_REPORT_ADMIN_URL 时不跳转（旧地址访问会 404）
+    const adminUrl = process.env.CAREER_REPORT_ADMIN_URL;
+    if (!adminUrl) return [];
+    return [
+      { source: "/admin/:path*", destination: `${adminUrl}/admin/:path*`, permanent: true },
+      { source: "/api/admin/:path*", destination: `${adminUrl}/api/admin/:path*`, permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;

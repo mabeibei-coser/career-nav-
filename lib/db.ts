@@ -3,7 +3,8 @@ import path from "path";
 import fs from "fs";
 
 const DATA_DIR = path.resolve(process.cwd(), "data");
-const DB_PATH = path.join(DATA_DIR, "career-report.db");
+const DEFAULT_DB = path.join(DATA_DIR, "career-nav.db");
+const DB_PATH = process.env.DB_PATH ?? DEFAULT_DB;
 
 let _db: Database.Database | null = null;
 
@@ -15,10 +16,13 @@ export function getDb(): Database.Database {
   fs.mkdirSync(path.join(DATA_DIR, "temp"), { recursive: true });
   _db = new Database(DB_PATH);
   _db.pragma("journal_mode = WAL");
+  _db.pragma("busy_timeout = 5000");
   _db.exec(`
     CREATE TABLE IF NOT EXISTS reports (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       created_at INTEGER NOT NULL,
+      uuid TEXT UNIQUE,
+      user_identity TEXT,
       target_position TEXT NOT NULL,
       target_education TEXT,
       target_company TEXT,
@@ -30,11 +34,20 @@ export function getDb(): Database.Database {
       sections_status TEXT,
       ip TEXT,
       user_agent TEXT,
-      duration_ms INTEGER
+      duration_ms INTEGER,
+      form_data_json TEXT,
+      quiz_answers_json TEXT,
+      scoring_json TEXT,
+      interview_q1q2_json TEXT,
+      report_json TEXT,
+      status TEXT DEFAULT 'completed'
     )
   `);
   _db.exec(
     `CREATE INDEX IF NOT EXISTS idx_reports_created_at ON reports(created_at DESC)`
+  );
+  _db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_reports_uuid ON reports(uuid)`
   );
   return _db;
 }
