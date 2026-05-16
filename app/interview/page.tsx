@@ -63,6 +63,13 @@ function canUseVoiceRecording(): boolean {
 const GREETING_TEXT =
   "下面进入语音访谈，一共 4 个问题，请按住麦克风作答。";
 
+// 视觉拆分：主标题（动作）+ 副标题（说明）。两行居中，避免长句换行出现孤字。
+// 改这里的字面值不影响 TTS（TTS 用上方 GREETING_TEXT；若两者文意分歧，需重跑 npm run tts:cache）
+const GREETING_DISPLAY = {
+  primary: "下面进入语音访谈",
+  secondary: "一共 4 个问题，请按住麦克风作答",
+};
+
 // 用 Q1/Q2 答案拼 raw "summary" 文本，作为 /loading 页的兜底
 // Q3/Q4 答案不入报告
 function buildRawAnswersSummary(answers: InterviewAnswer[]): string {
@@ -772,10 +779,13 @@ export default function InterviewPage() {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className="text-center"
+                className="text-center px-4"
               >
-                <p className="text-[15px] text-[var(--navy-800)] leading-[1.65]">
-                  {GREETING_TEXT}
+                <p className="text-[17px] font-medium text-[var(--navy-900)] tracking-wide leading-[1.5]">
+                  {GREETING_DISPLAY.primary}
+                </p>
+                <p className="mt-2 text-[13px] text-[var(--navy-600)] leading-[1.5] tracking-[0.02em]">
+                  {GREETING_DISPLAY.secondary}
                 </p>
               </motion.div>
             )}
