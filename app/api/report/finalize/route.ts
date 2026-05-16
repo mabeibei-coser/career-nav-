@@ -13,44 +13,10 @@ import type {
 
 export const runtime = "nodejs";
 
-// TODO V2: 实施 PII 脱敏管道（身份证号 / 手机号 / 家庭住址 / 邮箱）
-// 当前 V1 直接存原文，遵从用户 UC3 决策"参照 career-report"。
-// 入库的 form_data_json / report_json 含简历原文，包含潜在 PII。
-// V2 应在写库前跑一遍正则脱敏 + 标记 has_pii 字段，便于后续清理。
-
-// 老 schema（career-report 复用）字段：target_position / target_education /
-// target_company / target_city_tier 在新 5 模块流程下没有数据来源（除
-// targetPosition 外都是 undefined）。本路由保留这些列的写入以兼容现有表结构，
-// 同时 ALTER TABLE 加入新 schema 列。
-const NEW_COLUMNS: { name: string; ddl: string }[] = [
-  { name: "uuid", ddl: "TEXT" },
-  { name: "user_identity", ddl: "TEXT" },
-  { name: "form_data_json", ddl: "TEXT" },
-  { name: "quiz_answers_json", ddl: "TEXT" },
-  { name: "scoring_json", ddl: "TEXT" },
-  { name: "interview_q1q2_json", ddl: "TEXT" },
-  { name: "report_json", ddl: "TEXT" },
-  { name: "status", ddl: "TEXT DEFAULT 'completed'" },
-];
-
-let _migrated = false;
-function ensureSchema(db: ReturnType<typeof getDb>): void {
-  if (_migrated) return;
-  const cols = db
-    .prepare("PRAGMA table_info(reports)")
-    .all() as { name: string }[];
-  const existing = new Set(cols.map((c) => c.name));
-  for (const col of NEW_COLUMNS) {
-    if (!existing.has(col.name)) {
-      db.exec(`ALTER TABLE reports ADD COLUMN ${col.name} ${col.ddl}`);
-    }
-  }
-  // 给 uuid 加索引，让按 uuid 查报告快一点
-  db.exec(
-    `CREATE INDEX IF NOT EXISTS idx_reports_uuid ON reports(uuid)`
-  );
-  _migrated = true;
-}
+// V1 polish (T3): report_json 列是单一真相来源；不再往磁盘写 report 文件。
+// 老 schema 字段（target_education/target_company/target_city_tier）在新 5 模块流程下没有
+// 数据来源（除 targetPosition 外都是 undefined）。保留写 null 以兼容表结构。
+// PII V2 推迟：form_data_json / report_json 含简历原文，未来需脱敏管道（身份证/手机/地址/邮箱）。
 
 interface FinalizeRequestBody {
   formData: JobFormData;
@@ -88,7 +54,6 @@ export async function POST(req: NextRequest) {
     }
 
     const db = getDb();
-    ensureSchema(db);
 
     // scoring / interviewQ1Q2 优先走显式入参，否则从 reportData.meta 兜底
     const finalScoring: ScoringResult | undefined =
@@ -109,10 +74,7 @@ export async function POST(req: NextRequest) {
     const userAgent = req.headers.get("user-agent") ?? "";
     const hasResume = resumeRef && resumeFilename ? 1 : 0;
 
-    // 事务性插入主记录 + 立刻把 report JSON 落盘并回填 storage_path
-    const reportsDir = path.join(process.cwd(), "data", "reports");
-    fs.mkdirSync(reportsDir, { recursive: true });
-
+    // V1 polish (T3): 不再往磁盘写 report 文件，report_json 列即单一真相
     const txn = db.transaction(() => {
       const result = db
         .prepare(
@@ -150,24 +112,8 @@ export async function POST(req: NextRequest) {
 
     const reportRowId = txn();
 
-    // 同时落一份 JSON 到磁盘（兼容已有的 admin/reports 文件读取路径）
-    const reportPath = path.join(reportsDir, `${uuid}.json`);
-    fs.writeFileSync(
-      reportPath,
-      JSON.stringify({
-        formData,
-        quizAnswers,
-        scoring: finalScoring,
-        interviewQ1Q2: finalQ1Q2,
-        reportData,
-        sectionsStatus,
-      })
-    );
-    db.prepare(
-      "UPDATE reports SET report_storage_path = ? WHERE id = ?"
-    ).run(reportPath, reportRowId);
-
     // 把简历从 temp 搬到永久目录（按 uuid 归档）
+    // 注：简历是用户上传的原始文件，仍需磁盘存（区别于 report_json 是生成内容）
     if (hasResume && resumeRef && resumeFilename) {
       const srcPath = path.join(
         process.cwd(),
