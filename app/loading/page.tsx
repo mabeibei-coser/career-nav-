@@ -578,7 +578,7 @@ export default function LoadingPage() {
             正在生成你的职业导航报告
           </h1>
           <p className="text-[13px] sm:text-sm text-[var(--muted-foreground)]">
-            5 个模块整体生成，前后章节逻辑一致，约需 1-2 分钟
+            报告生成约 30 秒，请稍后
           </p>
         </motion.div>
 
