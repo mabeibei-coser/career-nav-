@@ -1,0 +1,321 @@
+<section class="module" id="module-3" style="background: var(--color-bg)">
+  <div class="module-content">
+    <header class="module-header animate-in">
+      <span class="module-number">03</span>
+      <h1 class="module-title">AI 是怎么写报告的</h1>
+      <p class="module-subtitle">5 个模块，一条链，每个 AI 都知道前面的 AI 说了什么</p>
+    </header>
+
+    <div class="module-body">
+
+      <!-- Screen 1: 不是一次 AI 调用，是一条链 -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">报告不是一次 AI 调用生成的</h2>
+        <p>你可能以为 AI 报告是这样的：把所有信息发给 AI，AI 一次吐出 5 个模块。</p>
+        <p>实际上，这个项目用了一种更聪明的方式——<strong>5 个模块按顺序生成，每个模块都知道前面模块的结论</strong>。这叫「<span class="term" data-definition="Context Threading（上下文穿针）是指把前一步 AI 生成的关键结论，传给下一步的 AI 当参考。就像接力赛跑——每个运动员都知道前一棒跑了什么方向，而不是自己从头发明路线。">Context Threading</span>」（上下文穿针）。</p>
+
+        <div class="step-cards animate-in">
+          <div class="step-card">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <strong>① 总评</strong>
+              <p>输入：量表分 + 访谈 Q1/Q2 → 输出：性格定位 + 四维雷达</p>
+            </div>
+          </div>
+          <div class="step-card">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <strong>② 优势发现</strong>
+              <p>输入：能力分 + <em>①的性格定位</em> → 输出：3条优势 + 2条成长建议</p>
+            </div>
+          </div>
+          <div class="step-card">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <strong>③ 职业定位</strong>
+              <p>输入：评分 + <em>①的性格 + ②的优势</em> → 输出：首选/次选岗位</p>
+            </div>
+          </div>
+          <div class="step-card">
+            <div class="step-num">4</div>
+            <div class="step-body">
+              <strong>④ 简历快诊</strong>
+              <p>输入：简历文字 + <em>①的性格</em> → 输出：简历问题 + 改写示例</p>
+            </div>
+          </div>
+          <div class="step-card">
+            <div class="step-num">5</div>
+            <div class="step-body">
+              <strong>⑤ 行动建议</strong>
+              <p>输入：所有评分 + <em>③的推荐岗位 + ①②</em> → 输出：3个最重要的行动</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="callout callout-accent animate-in">
+          <div class="callout-icon">💡</div>
+          <div class="callout-content">
+            <strong class="callout-title">为什么不让 AI 一次生成全部？</strong>
+            <p>因为如果 AI 一次要生成 5 个模块，它很容易在后面「忘掉」前面说的结论，导致总评说「你适合销售」，行动建议却说「去考程序员证书」。顺序生成 + context threading 让报告逻辑自洽。</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 2: Group Chat - AI 模块之间怎么传递上下文 -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">AI 模块之间是怎么「对话」的？</h2>
+        <p>每个后续模块都会拿到前面模块的关键结论。来看职业定位模块是怎么用前面两个模块输出的：</p>
+
+        <div class="chat-window animate-in" id="chat-context">
+          <div class="chat-messages">
+            <div class="chat-message" data-msg="0" data-sender="overview" style="display:none">
+              <div class="chat-avatar" style="background: var(--color-actor-1)">①总评</div>
+              <div class="chat-bubble">
+                <span class="chat-sender" style="color: var(--color-actor-1)">总评模块 (generateOverview)</span>
+                <p>生成完毕。性格定位：「稳健型执行者」，性格标签：踏实、专注、责任心强。</p>
+              </div>
+            </div>
+            <div class="chat-message" data-msg="1" data-sender="strength" style="display:none">
+              <div class="chat-avatar" style="background: var(--color-actor-2)">②优势</div>
+              <div class="chat-bubble">
+                <span class="chat-sender" style="color: var(--color-actor-2)">优势模块 (generateStrength)</span>
+                <p>收到总评结论。我的描述语气会和「稳健型执行者」保持一致。优势：细节把控能力强、流程执行扎实、团队协作稳定。</p>
+              </div>
+            </div>
+            <div class="chat-message" data-msg="2" data-sender="positioning" style="display:none">
+              <div class="chat-avatar" style="background: var(--color-actor-3)">③定位</div>
+              <div class="chat-bubble">
+                <span class="chat-sender" style="color: var(--color-actor-3)">定位模块 (generatePositioning)</span>
+                <p>我拿到了：性格=「稳健型执行者」，主要优势=「细节把控、流程执行、团队协作」。基于这些，推荐首选岗位：行政主管；次选：项目协调专员。</p>
+              </div>
+            </div>
+            <div class="chat-message" data-msg="3" data-sender="advice" style="display:none">
+              <div class="chat-avatar" style="background: var(--color-actor-5)">⑤建议</div>
+              <div class="chat-bubble">
+                <span class="chat-sender" style="color: var(--color-actor-5)">行动建议 (generateAdvice)</span>
+                <p>好的，推荐岗位是「行政主管」和「项目协调」——那行动建议 #1 就是：本周内整理并精简简历中的行政管理经历，突出跨部门协调案例。</p>
+              </div>
+            </div>
+          </div>
+          <div class="chat-typing" id="chat-context-typing" style="display:none">
+            <div class="chat-avatar" id="chat-context-typing-avatar">…</div>
+            <div class="chat-typing-dots">
+              <span class="typing-dot"></span>
+              <span class="typing-dot"></span>
+              <span class="typing-dot"></span>
+            </div>
+          </div>
+          <div class="chat-controls">
+            <button class="btn chat-next-btn">下一条</button>
+            <button class="btn chat-all-btn">全部播放</button>
+            <button class="btn chat-reset-btn">重放</button>
+            <span class="chat-progress"></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 3: AI 调用 - 代码翻译 -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">实际用的是哪家 AI？名字有点迷惑性</h2>
+        <p>代码里有个函数叫 <code>callDeepseekJson</code>、环境变量叫 <code>DEEPSEEK_API_KEY</code>——但<strong>实际调用的不是 DeepSeek</strong>。看 <code>lib/deepseek.ts</code> 顶部的注释：</p>
+
+        <div class="callout callout-warning animate-in">
+          <div class="callout-icon">⚠️</div>
+          <div class="callout-content">
+            <strong class="callout-title">命名是历史遗留，实现已经换了</strong>
+            <p>注释原文：「主模型：讯飞 Coding Plan（astron-code-latest）⚠️ 没有 DeepSeek！env var 沿用 DEEPSEEK_* 命名，但实际连接讯飞 Coding API。」原来用 DeepSeek，后来换成了讯飞 Coding，但没有重命名——这在真实项目里很常见，改名字的风险有时比留着旧名更高。</p>
+          </div>
+        </div>
+
+        <div class="translation-block animate-in">
+          <div class="translation-code">
+            <span class="translation-label">lib/report-shared.ts</span>
+            <pre><code>
+<span class="code-line"><span class="code-keyword">const</span> response = <span class="code-keyword">await</span> client.chat.completions.<span class="code-function">create</span>({</span>
+<span class="code-line">  <span class="code-property">model</span>: DEEPSEEK_MODEL, <span class="code-comment">// 实际= "astron-code-latest"</span></span>
+<span class="code-line">  <span class="code-property">messages</span>: [</span>
+<span class="code-line">    { <span class="code-property">role</span>: <span class="code-string">"system"</span>, <span class="code-property">content</span>: systemPrompt },</span>
+<span class="code-line">    { <span class="code-property">role</span>: <span class="code-string">"user"</span>,   <span class="code-property">content</span>: userPrompt }</span>
+<span class="code-line">  ],</span>
+<span class="code-line">  <span class="code-property">temperature</span>: <span class="code-number">0.6</span>,</span>
+<span class="code-line">  <span class="code-property">max_tokens</span>: <span class="code-number">3000</span>,</span>
+<span class="code-line">});</span>
+<span class="code-line"><span class="code-keyword">const</span> rawContent = response.choices[<span class="code-number">0</span>]?.message?.content;</span>
+<span class="code-line"><span class="code-keyword">const</span> cleaned = <span class="code-function">stripReasoning</span>(rawContent);</span>
+<span class="code-line"><span class="code-keyword">const</span> jsonStr = <span class="code-function">extractJson</span>(cleaned);</span>
+<span class="code-line"><span class="code-keyword">return</span> <span class="code-function">tryFixAndParse</span>(jsonStr);</span>
+            </code></pre>
+          </div>
+          <div class="translation-english">
+            <span class="translation-label">白话翻译</span>
+            <div class="translation-lines">
+              <p class="tl">发一条消息给讯飞 Coding AI，等待回复</p>
+              <p class="tl">使用 astron-code-latest 模型（变量名虽叫 DEEPSEEK_MODEL，其实指向讯飞）</p>
+              <p class="tl">消息是一个对话——有两条</p>
+              <p class="tl">系统角色：告诉 AI「你是谁，规则是什么」（类似给 AI 的岗位描述）</p>
+              <p class="tl">用户角色：实际要分析的内容（简历、评分、之前模块的结论）</p>
+              <p class="tl">消息结束</p>
+              <p class="tl">temperature=0.6：让 AI 的输出有点创意但不太随机（0=死板，1=乱说）</p>
+              <p class="tl">最多输出 3000 个 token（约 1500 中文字）</p>
+              <p class="tl">等 AI 回复完毕</p>
+              <p class="tl">取 AI 的第一条回复文本</p>
+              <p class="tl">去掉 AI 可能夹带的「思考过程」文字</p>
+              <p class="tl">从回复里提取 JSON 部分</p>
+              <p class="tl">把 JSON 字符串解析成程序可用的对象，返回</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 4: JSON 修复 -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">AI 返回的 JSON 坏掉了怎么办？</h2>
+        <p><span class="term" data-definition="JSON（JavaScript Object Notation）是一种数据格式，用花括号和方括号表示结构化数据。比如 {&quot;name&quot;: &quot;张三&quot;, &quot;age&quot;: 25}。">JSON</span> 是代码里传递数据的标准格式。问题是：AI 有时候会输出「不规范」的 JSON——带中文标点、多一个逗号、或者没闭合括号。</p>
+        <p>代码里有一个叫 <code>tryFixAndParse</code> 的「JSON 急救函数」，专门修复这些问题：</p>
+
+        <div class="pattern-cards animate-in">
+          <div class="pattern-card" style="border-top: 3px solid var(--color-actor-1)">
+            <div class="pattern-icon" style="background: var(--color-actor-1)">「→"</div>
+            <h4 class="pattern-title">中文引号</h4>
+            <p class="pattern-desc">把 「」 替换成 "" ——AI 中文输出时常夹带中文标点</p>
+          </div>
+          <div class="pattern-card" style="border-top: 3px solid var(--color-actor-2)">
+            <div class="pattern-icon" style="background: var(--color-actor-2)">，→,</div>
+            <h4 class="pattern-title">全角逗号</h4>
+            <p class="pattern-desc">把中文逗号「，」替换成英文逗号「,」</p>
+          </div>
+          <div class="pattern-card" style="border-top: 3px solid var(--color-actor-3)">
+            <div class="pattern-icon" style="background: var(--color-actor-3)">,}</div>
+            <h4 class="pattern-title">多余逗号</h4>
+            <p class="pattern-desc">删除最后一个元素后多出来的逗号（这在标准 JSON 里是非法的）</p>
+          </div>
+          <div class="pattern-card" style="border-top: 3px solid var(--color-actor-4)">
+            <div class="pattern-icon" style="background: var(--color-actor-4)">{ →{}</div>
+            <h4 class="pattern-title">未闭合括号</h4>
+            <p class="pattern-desc">数花括号和方括号，发现没对齐就自动补全关闭符号</p>
+          </div>
+        </div>
+
+        <div class="callout callout-info animate-in">
+          <div class="callout-icon">🔧</div>
+          <div class="callout-content">
+            <strong class="callout-title">工程师怎么看待这个问题</strong>
+            <p>不要假设 AI 总是返回完美的数据。防御性编程（defensive programming）就是假设外部数据可能是坏的，提前写好修复/兜底逻辑。这是生产级 AI 项目的标配。</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 5: 双链路兜底 -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">AI 挂了怎么办？两条讯飞 + Mock 三层兜底</h2>
+        <p>两条链路都是讯飞，但是<strong>不同的服务</strong>、不同的模型：</p>
+
+        <div class="flow-steps animate-in">
+          <div class="flow-step">
+            <div class="flow-step-num">1</div>
+            <p><strong>讯飞 Coding Plan 主链路</strong><br>astron-code-latest，走 maas-coding-api，50 秒超时</p>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step">
+            <div class="flow-step-num">2</div>
+            <p><strong>讯飞标准 API 兜底</strong><br>xop35qwen2b，主链路失败或内容校验不通过自动切换</p>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step">
+            <div class="flow-step-num">3</div>
+            <p><strong>Mock 数据兜底</strong><br>两家都失败，用预设的示例数据，报告仍然出现</p>
+          </div>
+        </div>
+
+        <div class="translation-block animate-in">
+          <div class="translation-code">
+            <span class="translation-label">lib/report-shared.ts — callWithFallback</span>
+            <pre><code>
+<span class="code-line"><span class="code-keyword">try</span> {</span>
+<span class="code-line">  <span class="code-keyword">return await</span> <span class="code-function">runOnce</span>(<span class="code-string">"deepseek"</span>, <span class="code-string">"DeepSeek"</span>);</span>
+<span class="code-line">} <span class="code-keyword">catch</span> (err) {</span>
+<span class="code-line">  <span class="code-keyword">if</span> (!iflytek) <span class="code-keyword">throw</span> err;</span>
+<span class="code-line">  console.<span class="code-function">warn</span>(<span class="code-string">"DeepSeek 失败，切换讯飞重试"</span>);</span>
+<span class="code-line">}</span>
+<span class="code-line"><span class="code-keyword">return await</span> <span class="code-function">runOnce</span>(<span class="code-string">"iflytek"</span>, <span class="code-string">"iFlytek"</span>);</span>
+            </code></pre>
+          </div>
+          <div class="translation-english">
+            <span class="translation-label">白话翻译（注意：代码里叫 deepseek，实际是讯飞 Coding）</span>
+            <div class="translation-lines">
+              <p class="tl">先试一次</p>
+              <p class="tl">调用「主链路」（变量名叫 deepseek，实际是讯飞 Coding Plan）</p>
+              <p class="tl">主链路失败了</p>
+              <p class="tl">如果没有配置讯飞标准 API key，就直接报错</p>
+              <p class="tl">打个警告日志（代码里写着 DeepSeek 字样，但实际是讯飞 Coding 失败）</p>
+              <p class="tl">结束错误处理</p>
+              <p class="tl">换用讯飞标准 API 重试，成功就返回结果</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="callout callout-info animate-in">
+          <div class="callout-icon">🔑</div>
+          <div class="callout-content">
+            <strong class="callout-title">代码里叫「DeepSeek」，实际跑的是「讯飞」——正常吗？</strong>
+            <p>完全正常。真实项目里经常有这种「历史包袱」。只要代码跑得对，函数叫什么名字是次要的。重要的是代码注释里有写明，别人（或未来的自己）不会被误导。如果要整理，可以安全地把函数名改成 <code>callLLMJson</code>，但不是必须做。</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 6: Quiz -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">小测验：你掌握 AI 报告生成了吗？</h2>
+        <div class="quiz-container" id="quiz-module3">
+          <div class="quiz-question-block"
+               data-correct="option-a"
+               data-explanation-right="对！Context Threading 的核心就是把前面模块的输出当做后面模块的输入，让所有模块的结论自洽一致。如果行动建议不知道推荐的岗位，它给出的建议可能与职业定位完全矛盾。"
+               data-explanation-wrong="想想 context threading 的目的——不是为了省代码，而是为了让报告各模块说的话互相不矛盾。">
+            <h3 class="quiz-question">为什么「行动建议」模块在生成时，需要知道「职业定位」模块推荐了哪些岗位？</h3>
+            <div class="quiz-options">
+              <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>这样行动建议才能和推荐岗位的方向一致，不说矛盾的话</span>
+              </button>
+              <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>为了减少 AI 调用次数，把两个模块合并处理</span>
+              </button>
+              <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>因为职业定位模块返回的 JSON 里包含了行动建议需要的评分数据</span>
+              </button>
+            </div>
+            <div class="quiz-feedback"></div>
+          </div>
+
+          <div class="quiz-question-block"
+               data-correct="option-b"
+               data-explanation-right="对！temperature 控制 AI 输出的随机性。0 就完全按「最可能的词」输出，太死板；1 很随机，可能乱说。0.6 是中间值——有创意但不失控。"
+               data-explanation-wrong="再想想 temperature 这个参数的作用——它和 token 数量无关，和 AI 的「创意度」有关。">
+            <h3 class="quiz-question">代码里把 temperature 设成 0.6，而不是 0 或 1。这是为什么？</h3>
+            <div class="quiz-options">
+              <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>0.6 能让 AI 输出更多 token，报告内容更丰富</span>
+              </button>
+              <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>让 AI 的输出有一定创意性，但不会太随机导致乱说</span>
+              </button>
+              <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>0.6 是该模型要求的固定值，不能改</span>
+              </button>
+            </div>
+            <div class="quiz-feedback"></div>
+          </div>
+
+          <button class="quiz-check-btn" onclick="checkQuiz('quiz-module3')">提交答案</button>
+          <button class="quiz-reset-btn" onclick="resetQuiz('quiz-module3')">重新作答</button>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</section>

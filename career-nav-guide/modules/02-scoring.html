@@ -1,0 +1,234 @@
+<section class="module" id="module-2" style="background: var(--color-bg-warm)">
+  <div class="module-content">
+    <header class="module-header animate-in">
+      <span class="module-number">02</span>
+      <h1 class="module-title">8 道题如何变成雷达图</h1>
+      <p class="module-subtitle">情境判断题背后的评分算法——比「对或错」聪明得多</p>
+    </header>
+
+    <div class="module-body">
+
+      <!-- Screen 1: 不是对错题——是光谱 -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">这不是考试，没有标准答案</h2>
+        <p>传统的性格测试（比如 MBTI）是「选 A 得 1 分，选 B 得 0 分」。career-nav 用的是更精密的方法：<strong>每个选项在一条光谱上有位置</strong>。</p>
+        <p>比如「工作风格」这个维度，光谱的一端是「按部就班」，另一端是「灵活应变」。选不同选项，你就在光谱上落在不同位置——没有好坏，只有「适合哪种工作环境」的差异。</p>
+
+        <div class="pattern-cards animate-in">
+          <div class="pattern-card" style="border-top: 3px solid var(--color-actor-1)">
+            <div class="pattern-icon" style="background: var(--color-actor-1)">🎭</div>
+            <h4 class="pattern-title">性格底色</h4>
+            <p class="pattern-desc">内敛 ←——→ 外向<br>你的社交风格和表达方式</p>
+          </div>
+          <div class="pattern-card" style="border-top: 3px solid var(--color-actor-2)">
+            <div class="pattern-icon" style="background: var(--color-actor-2)">⚙️</div>
+            <h4 class="pattern-title">工作风格</h4>
+            <p class="pattern-desc">按部就班 ←——→ 灵活变通<br>你处理任务的方式</p>
+          </div>
+          <div class="pattern-card" style="border-top: 3px solid var(--color-actor-3)">
+            <div class="pattern-icon" style="background: var(--color-actor-3)">💎</div>
+            <h4 class="pattern-title">价值驱动</h4>
+            <p class="pattern-desc">稳定安全 ←——→ 成长突破<br>什么驱动你工作</p>
+          </div>
+          <div class="pattern-card" style="border-top: 3px solid var(--color-actor-4)">
+            <div class="pattern-icon" style="background: var(--color-actor-4)">🧭</div>
+            <h4 class="pattern-title">适配方向</h4>
+            <p class="pattern-desc">专注深耕 ←——→ 多元涉猎<br>你更适合哪种职业路径</p>
+          </div>
+        </div>
+
+        <div class="callout callout-accent animate-in">
+          <div class="callout-icon">💡</div>
+          <div class="callout-content">
+            <strong class="callout-title">为什么不叫 MBTI？</strong>
+            <p>因为 MBTI 是注册商标，还有学术争议。代码里有一条硬规定：「严禁出现 MBTI / 大五人格 / 霍兰德等专有名词，对外统一称职业偏好量表」。这是政府项目的合规要求。</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 2: poleValue 光谱值 -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">每个选项都有一个「光谱位置」</h2>
+        <p>在代码里，这个光谱位置叫 <code>poleValue</code>（极点值），是 0-100 的数字。0 表示偏左极，100 表示偏右极。</p>
+        <p>8 道题，每维 2 道题。你在每道题上选的选项，都有一个 poleValue。两道题取平均，就是你这个维度的最终得分。</p>
+
+        <!-- Flow animation: 从答题到得分 -->
+        <div class="flow-animation animate-in" data-steps='[
+          {"highlight":"flow-actor-1","label":"用户回答第 1 题（性格底色维度）"},
+          {"highlight":"flow-actor-1","label":"选项 B 的 poleValue = 75（偏外向）","packet":true,"from":"actor-1","to":"actor-2"},
+          {"highlight":"flow-actor-2","label":"算法累加：sum=75, count=1"},
+          {"highlight":"flow-actor-1","label":"用户回答第 5 题（同为性格底色维度）"},
+          {"highlight":"flow-actor-1","label":"选项 A 的 poleValue = 55","packet":true,"from":"actor-1","to":"actor-2"},
+          {"highlight":"flow-actor-2","label":"再次累加：sum=130, count=2"},
+          {"highlight":"flow-actor-2","label":"计算维度得分：130 / 2 = 65","packet":true,"from":"actor-2","to":"actor-3"},
+          {"highlight":"flow-actor-3","label":"性格底色得分 = 65（偏外向）✅"}
+        ]'>
+          <div class="flow-actors">
+            <div class="flow-actor" id="flow-actor-1">
+              <div class="flow-actor-icon">📝</div>
+              <span>用户答题</span>
+            </div>
+            <div class="flow-actor" id="flow-actor-2">
+              <div class="flow-actor-icon">🧮</div>
+              <span>评分算法</span>
+            </div>
+            <div class="flow-actor" id="flow-actor-3">
+              <div class="flow-actor-icon">📊</div>
+              <span>雷达图分数</span>
+            </div>
+          </div>
+          <div class="flow-packet" id="flow-packet"></div>
+          <div class="flow-step-label" id="flow-label">点击「下一步」开始演示</div>
+          <div class="flow-controls">
+            <button class="btn flow-next-btn">下一步</button>
+            <button class="btn flow-reset-btn">重新开始</button>
+            <span class="flow-progress"></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 3: 能力六维 - 权重叠加 -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">同一道题，还能同时测 6 个能力？</h2>
+        <p>除了 4 个性格维度，量表还会算出 6 个能力维度（用于职业定位的雷达图）。这是通过每个选项的「<span class="term" data-definition="权重（weight）是一个数字，表示某件事对某个结果的贡献程度。比如选项 A 对「执行力」的权重是 3，对「协作」的权重是 1——说明选这个选项主要说明你执行力强。">权重</span>」来实现的。</p>
+
+        <div class="translation-block animate-in">
+          <div class="translation-code">
+            <span class="translation-label">评分算法核心 (lib/scoring.ts)</span>
+            <pre><code>
+<span class="code-line"><span class="code-keyword">for</span> (<span class="code-keyword">const</span> k <span class="code-keyword">of</span> ABILITY_ORDER) {</span>
+<span class="code-line">  <span class="code-comment">// 本题对能力 k 的理论最高分</span></span>
+<span class="code-line">  <span class="code-keyword">let</span> maxW = <span class="code-number">0</span>;</span>
+<span class="code-line">  <span class="code-keyword">for</span> (<span class="code-keyword">const</span> opt <span class="code-keyword">of</span> q.options) {</span>
+<span class="code-line">    <span class="code-keyword">if</span> (opt.weights[k] > maxW) maxW = opt.weights[k];</span>
+<span class="code-line">  }</span>
+<span class="code-line">  maxPossible[k] += maxW;</span>
+<span class="code-line">  achieved[k] += selected.weights[k] ?? <span class="code-number">0</span>;</span>
+<span class="code-line">}</span>
+            </code></pre>
+          </div>
+          <div class="translation-english">
+            <span class="translation-label">白话翻译</span>
+            <div class="translation-lines">
+              <p class="tl">对每个能力维度（沟通、协作、执行…）都算一次</p>
+              <p class="tl">先找出「这道题里，这个能力的天花板分数是多少」</p>
+              <p class="tl">初始化天花板为 0</p>
+              <p class="tl">遍历这道题的所有选项</p>
+              <p class="tl">找最高权重（即「最可能体现这个能力的选项」的分数）</p>
+              <p class="tl">结束遍历</p>
+              <p class="tl">把天花板加进「理论最高」计数器</p>
+              <p class="tl">把用户实际选的选项权重加进「实际得分」计数器</p>
+            </div>
+          </div>
+        </div>
+
+        <p style="margin-top: var(--space-6)">最后：<strong>实际得分 ÷ 理论最高 × 100</strong>，就是 0-100 的能力分。这样不同题目数量的维度也能公平比较。</p>
+      </section>
+
+      <!-- Screen 4: 6个能力维度 -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">报告里的 6 个能力维度从哪来？</h2>
+        <p>量表的每道题，每个选项都有 6 个维度的权重分配。8 道题答完，6 个累积器里就有了各维度的「已得分 / 理论最高」，最终换算成雷达图。</p>
+
+        <div class="icon-rows animate-in">
+          <div class="icon-row">
+            <div class="icon-circle" style="background: var(--color-actor-1)">🗣️</div>
+            <div>
+              <strong>沟通表达</strong>
+              <p>如何表达观点、说服他人、在团队中传递信息</p>
+            </div>
+          </div>
+          <div class="icon-row">
+            <div class="icon-circle" style="background: var(--color-actor-2)">🤝</div>
+            <div>
+              <strong>协作意识</strong>
+              <p>团队合作、配合度、关注他人需求的能力</p>
+            </div>
+          </div>
+          <div class="icon-row">
+            <div class="icon-circle" style="background: var(--color-actor-3)">⚡</div>
+            <div>
+              <strong>执行落地</strong>
+              <p>把想法变成实际成果、推进任务完成的能力</p>
+            </div>
+          </div>
+          <div class="icon-row">
+            <div class="icon-circle" style="background: var(--color-actor-4)">📚</div>
+            <div>
+              <strong>学习能力</strong>
+              <p>接受新知识、适应变化、主动成长的能力</p>
+            </div>
+          </div>
+          <div class="icon-row">
+            <div class="icon-circle" style="background: var(--color-actor-5)">🔍</div>
+            <div>
+              <strong>信息处理</strong>
+              <p>分析数据、找规律、处理复杂信息的能力</p>
+            </div>
+          </div>
+          <div class="icon-row">
+            <div class="icon-circle" style="background: var(--color-accent)">🏋️</div>
+            <div>
+              <strong>压力适应</strong>
+              <p>在高压和不确定性下保持稳定表现的能力</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 5: Quiz -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">小测验：你理解算分逻辑了吗？</h2>
+        <div class="quiz-container" id="quiz-module2">
+          <div class="quiz-question-block"
+               data-correct="option-b"
+               data-explanation-right="正确！poleValue 是 0-100 的光谱值，不是对错——它表示你在维度光谱上的位置。两道同维度的题取平均，就得到这个维度的最终分数。"
+               data-explanation-wrong="不对。career-nav 的量表不是「对 = 加分，错 = 不加分」，而是每个选项都有一个光谱位置值 poleValue。">
+            <h3 class="quiz-question">用户在「工作风格」维度的 2 道题中分别选了 poleValue=40 和 poleValue=60 的选项，最终这个维度得多少分？</h3>
+            <div class="quiz-options">
+              <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>100 分（两题都答了，满分）</span>
+              </button>
+              <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>50 分（两个 poleValue 的平均值）</span>
+              </button>
+              <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>0 分（没有选最高 poleValue 的选项）</span>
+              </button>
+            </div>
+            <div class="quiz-feedback"></div>
+          </div>
+
+          <div class="quiz-question-block"
+               data-correct="option-c"
+               data-explanation-right="对！6个能力维度（沟通、协作、执行等）用的是「已得/理论最高」比值法，而4个性格维度用的是 poleValue 平均值——两套计算逻辑，用在不同的报告图表里。"
+               data-explanation-wrong="再仔细想想——报告里有两种图：性格四维雷达（用 poleValue 均值）和能力六维雷达（用权重比值），算法是不同的。">
+            <h3 class="quiz-question">现在要在报告里加一个新维度「创造力」。以下哪种做法是正确的？</h3>
+            <div class="quiz-options">
+              <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>在 report/overview 的 AI 提示词里让 DeepSeek 算出创造力分数</span>
+              </button>
+              <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>在 quiz/bank.json 里随机生成几道题，代码自动计算</span>
+              </button>
+              <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>在题库里给每道题的选项加上 creativity 权重字段，然后在 scoring.ts 的 ABILITY_ORDER 里添加这个维度</span>
+              </button>
+            </div>
+            <div class="quiz-feedback"></div>
+          </div>
+
+          <button class="quiz-check-btn" onclick="checkQuiz('quiz-module2')">提交答案</button>
+          <button class="quiz-reset-btn" onclick="resetQuiz('quiz-module2')">重新作答</button>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</section>

@@ -1,0 +1,234 @@
+<section class="module" id="module-4" style="background: var(--color-bg-warm)">
+  <div class="module-content">
+    <header class="module-header animate-in">
+      <span class="module-number">04</span>
+      <h1 class="module-title">语音访谈的技术底层</h1>
+      <p class="module-subtitle">一句话被 AI 听懂的完整旅程：麦克风 → 文字 → 报告</p>
+    </header>
+
+    <div class="module-body">
+
+      <!-- Screen 1: 访谈流程总览 -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">4 道题，不是 4 道一样的题</h2>
+        <p>访谈页面有 4 道问题，但它们的「含金量」完全不同——代码里有一个重要的设计决策隐藏在这里：</p>
+
+        <div class="pattern-cards animate-in">
+          <div class="pattern-card" style="border-top: 3px solid var(--color-actor-1)">
+            <div class="pattern-icon" style="background: var(--color-actor-1)">Q1</div>
+            <h4 class="pattern-title">第 1 题</h4>
+            <p class="pattern-desc">DeepSeek 根据你的简历动态生成。你的回答会进入报告的每一个模块。</p>
+          </div>
+          <div class="pattern-card" style="border-top: 3px solid var(--color-actor-2)">
+            <div class="pattern-icon" style="background: var(--color-actor-2)">Q2</div>
+            <h4 class="pattern-title">第 2 题</h4>
+            <p class="pattern-desc">DeepSeek 动态生成。你的回答同样进入报告。<br><strong>答完这题，报告生成就在后台悄悄启动了！</strong></p>
+          </div>
+          <div class="pattern-card" style="border-top: 3px solid var(--color-border)">
+            <div class="pattern-icon" style="background: var(--color-text-muted)">Q3</div>
+            <h4 class="pattern-title">第 3 题（缓冲）</h4>
+            <p class="pattern-desc">从题库随机抽取。你的回答<strong>不</strong>进报告——这道题只是让你在等待时有事可做。</p>
+          </div>
+          <div class="pattern-card" style="border-top: 3px solid var(--color-border)">
+            <div class="pattern-icon" style="background: var(--color-text-muted)">Q4</div>
+            <h4 class="pattern-title">第 4 题（缓冲）</h4>
+            <p class="pattern-desc">同上，从题库随机抽取，回答不进报告。答完这道题，报告生成通常也完成了。</p>
+          </div>
+        </div>
+
+        <div class="callout callout-accent animate-in">
+          <div class="callout-icon">💡</div>
+          <div class="callout-content">
+            <strong class="callout-title">这是一个用户体验的小把戏</strong>
+            <p>报告生成需要 40-100 秒（5 个 AI 模块顺序调用）。Q3/Q4 就是在「占用用户注意力」——让他们觉得「我还在答题」，而不是「我在等」。这叫 perceived performance（感知性能）优化。</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 2: 语音技术栈 -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">你按住麦克风说话，到底发生了什么？</h2>
+
+        <!-- Data flow animation: voice pipeline -->
+        <div class="flow-animation animate-in" data-steps='[
+          {"highlight":"flow-actor-1","label":"用户按住麦克风按钮"},
+          {"highlight":"flow-actor-1","label":"浏览器 MediaRecorder 开始录音","packet":true,"from":"actor-1","to":"actor-2"},
+          {"highlight":"flow-actor-2","label":"音频数据存为 Blob（二进制大对象）"},
+          {"highlight":"flow-actor-2","label":"用户松开按钮，停止录音，发送音频","packet":true,"from":"actor-2","to":"actor-3"},
+          {"highlight":"flow-actor-3","label":"服务器收到音频，调用火山 ASR"},
+          {"highlight":"flow-actor-3","label":"火山 ASR 返回文字转写结果","packet":true,"from":"actor-3","to":"actor-4"},
+          {"highlight":"flow-actor-4","label":"前端展示文字，用户确认"},
+          {"highlight":"flow-actor-4","label":"文字答案存入 interviewQ1Q2，等待进报告"}
+        ]'>
+          <div class="flow-actors">
+            <div class="flow-actor" id="flow-actor-1">
+              <div class="flow-actor-icon">🎤</div>
+              <span>用户&麦克风</span>
+            </div>
+            <div class="flow-actor" id="flow-actor-2">
+              <div class="flow-actor-icon">📱</div>
+              <span>浏览器录音</span>
+            </div>
+            <div class="flow-actor" id="flow-actor-3">
+              <div class="flow-actor-icon">🔊</div>
+              <span>火山 ASR</span>
+            </div>
+            <div class="flow-actor" id="flow-actor-4">
+              <div class="flow-actor-icon">📝</div>
+              <span>文字确认</span>
+            </div>
+          </div>
+          <div class="flow-packet" id="flow-packet"></div>
+          <div class="flow-step-label" id="flow-label">点击「下一步」开始演示</div>
+          <div class="flow-controls">
+            <button class="btn flow-next-btn">下一步</button>
+            <button class="btn flow-reset-btn">重新开始</button>
+            <span class="flow-progress"></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 3: 两个语音服务的分工 -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">ASR 和 TTS——两个方向的语音转换</h2>
+        <p>访谈页用了两个不同的<span class="term" data-definition="API（Application Programming Interface）是两个程序之间的「对话协议」。就像餐厅的点菜单——你不需要知道厨房怎么做菜，只需要按格式点单，厨房按格式上菜。">API</span>，负责两个方向：</p>
+
+        <div class="icon-rows animate-in">
+          <div class="icon-row">
+            <div class="icon-circle" style="background: var(--color-actor-1)">🎤→字</div>
+            <div>
+              <strong>火山 ASR（语音识别）</strong>
+              <p>你说的话 → 文字。用户按住麦克风说的回答，通过这个服务转成文字存入报告。</p>
+            </div>
+          </div>
+          <div class="icon-row">
+            <div class="icon-circle" style="background: var(--color-actor-2)">字→🔊</div>
+            <div>
+              <strong>火山 TTS（语音合成）</strong>
+              <p>文字 → AI 的声音。AI 生成的访谈问题，通过这个服务播放出来让用户听。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="translation-block animate-in">
+          <div class="translation-code">
+            <span class="translation-label">app/api/interview/transcribe/route.ts</span>
+            <pre><code>
+<span class="code-line"><span class="code-keyword">const</span> result = <span class="code-keyword">await</span> <span class="code-function">volcASRBatch</span>({</span>
+<span class="code-line">  <span class="code-property">audioBuffer</span>: audioBuffer,</span>
+<span class="code-line">  <span class="code-property">format</span>: <span class="code-string">"webm"</span>,</span>
+<span class="code-line">  <span class="code-property">language</span>: <span class="code-string">"zh-CN"</span>,</span>
+<span class="code-line">});</span>
+<span class="code-line"><span class="code-keyword">return</span> <span class="code-function">NextResponse</span>.<span class="code-function">json</span>({</span>
+<span class="code-line">  <span class="code-property">text</span>: result.text,</span>
+<span class="code-line">});</span>
+            </code></pre>
+          </div>
+          <div class="translation-english">
+            <span class="translation-label">白话翻译</span>
+            <div class="translation-lines">
+              <p class="tl">调用火山引擎的语音识别服务</p>
+              <p class="tl">把录好的音频二进制数据发过去</p>
+              <p class="tl">告诉 ASR 音频是 webm 格式（手机浏览器常用格式）</p>
+              <p class="tl">语言是中文</p>
+              <p class="tl">等待识别结果</p>
+              <p class="tl">把识别出的文字发回给前端</p>
+              <p class="tl">（就这么简单：音频进，文字出）</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 4: 状态机 -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">访谈页有 14 种状态，为什么这么多？</h2>
+        <p>访谈页的代码里有一个<span class="term" data-definition="状态机（State Machine）是一种管理「当前处于什么状态」的设计模式。就像交通灯——只能从绿灯变黄灯，黄灯变红灯，不能直接从红灯跳到绿灯。有了状态机，代码就不会出现「正在录音的时候又开始录音」这种混乱。">状态机</span>管理整个交互流程。看起来很多，但每个状态都有其存在的理由：</p>
+
+        <div class="pattern-cards animate-in">
+          <div class="pattern-card" style="border-top: 3px solid var(--color-actor-4)">
+            <div class="pattern-icon" style="background: var(--color-actor-4)">🎬</div>
+            <h4 class="pattern-title">初始化阶段</h4>
+            <p class="pattern-desc">init → greeting → idle<br>播放欢迎语、等待用户准备好</p>
+          </div>
+          <div class="pattern-card" style="border-top: 3px solid var(--color-actor-2)">
+            <div class="pattern-icon" style="background: var(--color-actor-2)">🎤</div>
+            <h4 class="pattern-title">录音阶段</h4>
+            <p class="pattern-desc">requesting-mic → mic-granted → ready → recording<br>申请权限、拿到权限、等待按下、录音中</p>
+          </div>
+          <div class="pattern-card" style="border-top: 3px solid var(--color-actor-3)">
+            <div class="pattern-icon" style="background: var(--color-actor-3)">⚡</div>
+            <h4 class="pattern-title">处理阶段</h4>
+            <p class="pattern-desc">transcribing → preview<br>把音频发给 ASR 处理、展示识别文字</p>
+          </div>
+          <div class="pattern-card" style="border-top: 3px solid var(--color-actor-5)">
+            <div class="pattern-icon" style="background: var(--color-actor-5)">✅</div>
+            <h4 class="pattern-title">完成与异常</h4>
+            <p class="pattern-desc">done → /loading<br>error：网络问题、权限拒绝等</p>
+          </div>
+        </div>
+
+        <div class="callout callout-info animate-in">
+          <div class="callout-icon">🔑</div>
+          <div class="callout-content">
+            <strong class="callout-title">状态机的核心价值</strong>
+            <p>没有状态机，你很难防止「按了两次录音按钮」「AI 还没说完用户就开始说」这类<span class="term" data-definition="竞态条件（Race Condition）是指两个操作同时发生，哪个先完成是随机的，导致结果不可预期。比如同时提交两次表单，到底哪个算数？">竞态条件</span>问题。状态机像交通灯——确保每次只有一件事在发生。</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 5: Quiz -->
+      <section class="screen animate-in">
+        <h2 class="screen-heading">小测验：语音访谈的设计</h2>
+        <div class="quiz-container" id="quiz-module4">
+          <div class="quiz-question-block"
+               data-correct="option-b"
+               data-explanation-right="正确！Q3/Q4 是纯粹的「时间缓冲」——用户在答这两道题的时候，AI 已经在后台生成报告了。这是感知性能优化的典型案例：用有意义的交互填充等待时间。"
+               data-explanation-wrong="不对。想想为什么代码注释里特别说「Q3Q4 答案不入报告」——这两道题的真正目的是让用户在等报告生成时有事可做。">
+            <h3 class="quiz-question">用户在回答 Q3 时，服务器正在做什么？</h3>
+            <div class="quiz-options">
+              <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>等待 Q3 的回答，准备用它来生成报告</span>
+              </button>
+              <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>用 Q1/Q2 的答案在后台生成 AI 报告</span>
+              </button>
+              <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>什么都没做，等所有 4 道题答完才开始</span>
+              </button>
+            </div>
+            <div class="quiz-feedback"></div>
+          </div>
+
+          <div class="quiz-question-block"
+               data-correct="option-a"
+               data-explanation-right="对！ASR（Automatic Speech Recognition）是语音转文字，TTS（Text-To-Speech）是文字转语音。用户说的话要用 ASR 识别，AI 生成的问题要用 TTS 播放给用户听。"
+               data-explanation-wrong="再看看两个服务的方向——ASR 是输入（声音进来），TTS 是输出（声音出去）。">
+            <h3 class="quiz-question">现在要让 AI 生成的问题「大声念出来」，用什么服务？</h3>
+            <div class="quiz-options">
+              <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>TTS（Text-To-Speech），把文字转成语音播放</span>
+              </button>
+              <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>ASR（Automatic Speech Recognition），把语音转成文字</span>
+              </button>
+              <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>DeepSeek，让它直接输出 MP3 格式</span>
+              </button>
+            </div>
+            <div class="quiz-feedback"></div>
+          </div>
+
+          <button class="quiz-check-btn" onclick="checkQuiz('quiz-module4')">提交答案</button>
+          <button class="quiz-reset-btn" onclick="resetQuiz('quiz-module4')">重新作答</button>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</section>
