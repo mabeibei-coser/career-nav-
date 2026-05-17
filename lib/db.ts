@@ -40,9 +40,23 @@ export function getDb(): Database.Database {
       scoring_json TEXT,
       interview_q1q2_json TEXT,
       report_json TEXT,
+      dynamic_questions_json TEXT,
+      interview_questions_json TEXT,
       status TEXT DEFAULT 'completed'
     )
   `);
+  // 老库补列：SQLite 不支持 ADD COLUMN IF NOT EXISTS，所以查表先
+  const existingCols = new Set(
+    (_db.prepare("PRAGMA table_info(reports)").all() as Array<{ name: string }>).map(
+      (c) => c.name,
+    ),
+  );
+  if (!existingCols.has("dynamic_questions_json")) {
+    _db.exec("ALTER TABLE reports ADD COLUMN dynamic_questions_json TEXT");
+  }
+  if (!existingCols.has("interview_questions_json")) {
+    _db.exec("ALTER TABLE reports ADD COLUMN interview_questions_json TEXT");
+  }
   _db.exec(
     `CREATE INDEX IF NOT EXISTS idx_reports_created_at ON reports(created_at DESC)`
   );

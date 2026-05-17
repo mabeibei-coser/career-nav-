@@ -476,12 +476,27 @@ export default function LoadingPage() {
         }
         // finalize 落库（失败不阻塞跳转）
         // 带上 form 阶段生成的 reportUuid 做幂等：loading 页 + report 页多次 finalize 只入库一次
+        // 题目快照（quizQuestions / interviewQuestions）随 sessionStorage 读出来一并提交，
+        // 让 admin 端能追溯 LLM 动态生成的 SJT-03~08 + Q1/Q2 题干
+        let quizQuestionsSnap: unknown = undefined;
+        let interviewQuestionsSnap: unknown = undefined;
+        try {
+          const qqStr = sessionStorage.getItem("quizQuestions");
+          if (qqStr) quizQuestionsSnap = JSON.parse(qqStr);
+        } catch { /* ignore */ }
+        try {
+          const iqStr = sessionStorage.getItem("interviewQuestions");
+          if (iqStr) interviewQuestionsSnap = JSON.parse(iqStr);
+        } catch { /* ignore */ }
         fetch(`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/report/finalize`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             formData,
             quizAnswers,
+            interviewQ1Q2,
+            quizQuestions: quizQuestionsSnap,
+            interviewQuestions: interviewQuestionsSnap,
             reportData: report,
             sectionsStatus: {},
             durationMs: Date.now() - startTime,

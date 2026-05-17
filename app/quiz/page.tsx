@@ -138,6 +138,9 @@ export default function QuizPage() {
         }));
       try {
         sessionStorage.setItem("quizAnswers", JSON.stringify(arr));
+        // 动态题（SJT-03~08 LLM 生成）题目内容只活在内存缓存里，6h 后丢失。
+        // 存一份快照到 sessionStorage，finalize 时随 quizAnswers 一起入库，让 admin 端可追溯。
+        sessionStorage.setItem("quizQuestions", JSON.stringify(qs));
       } catch {}
       return arr;
     },

@@ -340,6 +340,18 @@ export default function InterviewPage() {
       questionsRef.current = all;
       setQuestions(all);
 
+      // 持久化 Q1/Q2 题干（LLM 动态生成，否则只活在内存里），
+      // finalize 时随 quizQuestions 一起入库，admin 端可追溯。
+      // 不存 audioBase64，避免占爆 sessionStorage 配额。
+      try {
+        sessionStorage.setItem(
+          "interviewQuestions",
+          JSON.stringify({ Q1: q1q2[0]?.text, Q2: q1q2[1]?.text }),
+        );
+      } catch {
+        /* 配额满 / 隐私模式 → 静默降级 */
+      }
+
       // 后台预合成 Q3Q4 语音（Q1Q2 已在服务端合成并随 /question 返回）
       // 失败静默降级，不影响主流程
       const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";

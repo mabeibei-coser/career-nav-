@@ -115,12 +115,25 @@ export default function ReportPage() {
     // 复用 form 页生成的 reportUuid 做幂等。loading 页已用同一 uuid finalize 过，
     // 此处 fetch 后端会返回 duplicate:true 不重复 INSERT。
     const reportUuid = sessionStorage.getItem("reportUuid") ?? undefined;
+    // 读题目快照（与 loading 页一致），保证用户跳过 loading 直接进 report 时也能保住题干
+    let quizQuestionsSnap: unknown = undefined;
+    let interviewQuestionsSnap: unknown = undefined;
+    try {
+      const qqStr = sessionStorage.getItem("quizQuestions");
+      if (qqStr) quizQuestionsSnap = JSON.parse(qqStr);
+    } catch { /* ignore */ }
+    try {
+      const iqStr = sessionStorage.getItem("interviewQuestions");
+      if (iqStr) interviewQuestionsSnap = JSON.parse(iqStr);
+    } catch { /* ignore */ }
     fetch(`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/report/finalize`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         formData,
         quizAnswers,
+        quizQuestions: quizQuestionsSnap,
+        interviewQuestions: interviewQuestionsSnap,
         reportData,
         sectionsStatus: {},
         resumeRef,

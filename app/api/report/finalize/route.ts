@@ -7,6 +7,7 @@ import type {
   InterviewQ1Q2,
   JobFormData,
   QuizAnswer,
+  QuizQuestion,
   ReportData,
   ScoringResult,
 } from "@/lib/types";
@@ -24,6 +25,11 @@ interface FinalizeRequestBody {
   scoring?: ScoringResult;
   interviewQ1Q2?: InterviewQ1Q2;
   reportData: ReportData;
+  /** 8 道量表题完整 snapshot（含 SJT-01~02 固定题 + SJT-03~08 LLM 动态题）。
+   *  动态题原本只存在进程内存缓存（6h TTL），不入库会导致 admin 端无法追溯题干。*/
+  quizQuestions?: QuizQuestion[];
+  /** Q1/Q2 访谈题干（LLM 按用户简历动态生成）。同样原本只活在内存，需快照入库。*/
+  interviewQuestions?: { Q1?: string; Q2?: string };
   // 兼容现有 loading 页 caller 仍在传的字段
   sectionsStatus?: unknown;
   durationMs?: number;
@@ -43,6 +49,8 @@ export async function POST(req: NextRequest) {
       scoring,
       interviewQ1Q2,
       reportData,
+      quizQuestions,
+      interviewQuestions,
       sectionsStatus,
       durationMs,
       resumeRef,
@@ -103,8 +111,9 @@ export async function POST(req: NextRequest) {
             (created_at, target_position, target_education, target_company, target_city_tier,
              has_resume, resume_filename, sections_status, ip, user_agent, duration_ms,
              uuid, user_identity, form_data_json, quiz_answers_json, scoring_json,
-             interview_q1q2_json, report_json, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+             interview_q1q2_json, report_json, dynamic_questions_json,
+             interview_questions_json, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           createdAt,
@@ -126,6 +135,8 @@ export async function POST(req: NextRequest) {
           JSON.stringify(finalScoring),
           finalQ1Q2 ? JSON.stringify(finalQ1Q2) : null,
           JSON.stringify(reportData),
+          quizQuestions ? JSON.stringify(quizQuestions) : null,
+          interviewQuestions ? JSON.stringify(interviewQuestions) : null,
           "completed"
         );
       return result.lastInsertRowid as number;
