@@ -4,6 +4,13 @@ import {
   buildBaseContext,
   callWithFallback,
 } from "@/lib/report-shared";
+import {
+  POLE_KEYWORDS,
+  POLE_LABELS,
+  REVERSE_WORD_ISSUE_PREFIX,
+  detectReverseWords,
+  tendencyChip,
+} from "@/lib/overview-tendency";
 import { getMockBySection } from "@/lib/mocks/report-mocks";
 import type {
   InterviewQ1Q2,
@@ -32,7 +39,11 @@ function isBadString(s: unknown, minLen = 2): boolean {
   return PLACEHOLDER_PATTERNS.some((re) => re.test(t));
 }
 
-function validateOverview(d: Overview): string | null {
+/**
+ * 基础结构校验（字段缺失/占位符/长度）。
+ * 反向词冲突校验在 POST 内闭包包装 scoring 后做（见 localValidator）。
+ */
+function validateOverviewShape(d: Overview): string | null {
   if (!d || typeof d !== "object") return "overview 根对象缺失";
   if (!d.personality || typeof d.personality !== "object")
     return "personality 缺失";
@@ -51,18 +62,32 @@ function validateOverview(d: Overview): string | null {
   return null;
 }
 
+
 const SYSTEM_PROMPT = `你是黄浦区职业咨询师。基于用户的「性格四维评分」+「Q1/Q2/Q3 访谈回答」生成性格综述。
 
 ${APPLICANT_BASELINE}
 
 【任务】生成一份"职业性格总评"，包含：
-1. personality.type：4-10 字的纯中文职业性格定位（如 "稳健型执行者"、"温和型推动者"、"沉稳协调者"、"务实深耕者"）。基于四维评分和访谈内容提炼，**绝不能出现任何字母代码或缩写**
+1. personality.type：4-10 字的纯中文职业性格定位。基于四维评分倾向和访谈内容提炼，**绝不能出现任何字母代码或缩写**
 2. personality.traits：3-4 个性格标签（每个 2-4 字）
 3. personality.description：80-120 字描述，结合四维评分和 Q1/Q2/Q3 访谈内容，写该性格在职场的实际表现——最受欢迎的场合 + 最容易掉坑的场合，白描不鸡汤
 4. fourDimRadar：4 项 { name, score, conclusion }，name 严格用「性格底色 / 工作风格 / 价值驱动 / 适配方向」，score 严格用入参 scoring.fourDim 的对应值（不重新计算！），conclusion 是该维度的简短文字结论（不超过 30 字，描述用户在该维度的突出特点）
 5. summary：120-150 字综述，鼓励 + 务实语气，融入 Q1/Q2/Q3 访谈信息（若 Q3 提供了有价值的背景，优先融入）
 
-【硬约束】
+【personality.type 示例库 — 必须按四维主导倾向挑选与之呼应的方向，不得反向】
+偏稳定 / 守成 / 内敛 / 深耕方向（用于多维偏左）：
+  "稳健型执行者"、"沉稳协调者"、"务实深耕者"、"踏实型守成者"
+偏成长 / 探索 / 灵活 / 多元方向（用于多维偏右）：
+  "成长驱动型开拓者"、"灵活适应型推动者"、"主动进取型探索者"、"多元跨界型协作者"
+混合 / 较均衡（部分维度偏左部分偏右）：
+  "温和型推动者"、"务实进取型协作者"、"稳中求进型探索者"
+
+【硬约束 — 标题/标签必须呼应四维倾向，不得反向】
+- 若价值驱动**偏探索成长**（score ≥ 61）：personality.type 和 traits 中**严禁**出现 "稳健 / 务实 / 守成 / 本分 / 安稳 / 踏实肯干" 等反向核心词，应呼应 "探索 / 进取 / 开拓 / 拼搏 / 成长"
+- 若价值驱动**偏稳定务实**（score ≤ 40）：personality.type 和 traits 中**严禁**出现 "探索 / 进取 / 开拓 / 野心 / 拼搏 / 突破" 等反向核心词，应呼应 "稳健 / 务实 / 踏实"
+- 工作风格 / 性格底色 / 适配方向 三维同理，方向反了就是逻辑矛盾，会被自动拒收
+
+【其他硬约束】
 - personality.type 是纯中文性格定位（4-10 字），**严禁出现 MBTI / 大五 / 霍兰德等专有名词，严禁出现 ISTJ / ENFJ 这类四字母代码或任何字母缩写**
 - 描述用户身份：recent_grad（应届毕业生）/ young_unemployed（35岁以下求职者）/ general_unemployed（35岁以上求职者），措辞要贴合身份；非应届求职者不要嘲讽空白期或就业经历
 - fourDimRadar 的 score 必须照搬入参，不要 LLM 重算
@@ -83,10 +108,12 @@ function buildInterviewSummary(q1q2: InterviewQ1Q2): string | undefined {
 }
 
 function buildScoringSummary(scoring: ScoringResult): string {
-  const lines = scoring.fourDim.map(
-    (d) => `- ${d.name}（${d.dimension}）：${d.score} 分`
-  );
-  return ["性格四维评分：", ...lines].join("\n");
+  // 把前端展示给用户的"偏左 / 较均衡 / 偏右"语义标签也喂给 LLM —— 仅给数字它会忽略方向
+  const lines = scoring.fourDim.map((d) => {
+    const p = POLE_LABELS[d.dimension];
+    return `- ${d.name}（${d.dimension}）：${d.score} 分 → ${tendencyChip(d.score, d.dimension)}（${p.left} ←→ ${p.right}）`;
+  });
+  return ["性格四维评分（含双极倾向，必须呼应）：", ...lines].join("\n");
 }
 
 export async function POST(req: NextRequest) {
@@ -166,13 +193,72 @@ export async function POST(req: NextRequest) {
     `提醒：fourDimRadar 的 score 必须严格照抄上述四维评分数值，不要重新计算。`,
   ].join("\n");
 
+  // ---- 闭包 validator：在基础 shape 校验之上叠加反向词冲突校验 ----
+  const localValidator = (d: Overview): string | null => {
+    const shapeIssue = validateOverviewShape(d);
+    if (shapeIssue) return shapeIssue;
+    const text =
+      (d.personality?.type ?? "") +
+      " " +
+      (Array.isArray(d.personality?.traits) ? d.personality.traits : []).join(" ");
+    const conflicts = detectReverseWords(text, scoring.fourDim);
+    if (conflicts.length > 0) {
+      const summary = conflicts
+        .map((c) => {
+          const side = c.tendency === "left" ? "偏左" : "偏右";
+          return `${c.dimensionName}（${side}：${tendencyChip(scoring.fourDim.find((d) => d.dimension === c.dimension)!.score, c.dimension)}）出现反向核心词 [${c.hits.join("、")}]`;
+        })
+        .join("; ");
+      return `${REVERSE_WORD_ISSUE_PREFIX}: ${summary}`;
+    }
+    return null;
+  };
+
+  // ---- 同链路 retry 钩子：反向词冲突 → 把违规清单和应呼应方向喂回 LLM ----
+  const onValidationFailure = (
+    issue: string,
+    data: Overview
+  ): { userPrompt: string } | null => {
+    if (!issue.startsWith(REVERSE_WORD_ISSUE_PREFIX)) return null; // shape 错误不 retry
+    const text =
+      (data.personality?.type ?? "") +
+      " " +
+      (Array.isArray(data.personality?.traits) ? data.personality.traits : []).join(" ");
+    const conflicts = detectReverseWords(text, scoring.fourDim);
+    if (conflicts.length === 0) return null;
+
+    const fixLines = conflicts.map((c) => {
+      const dimScore = scoring.fourDim.find((d) => d.dimension === c.dimension)!;
+      const chip = tendencyChip(dimScore.score, c.dimension);
+      const dict = POLE_KEYWORDS[c.dimension];
+      const avoid = (c.tendency === "left" ? dict.right : dict.left).join("、");
+      const echo = (c.tendency === "left" ? dict.left : dict.right).slice(0, 4).join("、");
+      return `- ${c.dimensionName}（${chip}，分数 ${dimScore.score}）：上次输出含反向词 [${c.hits.join("、")}]。**严禁**使用 "${avoid}" 这类反向词；**应呼应** "${echo}" 等方向词`;
+    });
+
+    const feedback = [
+      "",
+      "═══ 上一轮输出存在逻辑反向问题，必须修正后重新生成 ═══",
+      `上一轮 personality.type = "${data.personality?.type ?? ""}"`,
+      `上一轮 traits = ${JSON.stringify(data.personality?.traits ?? [])}`,
+      "",
+      "【冲突清单 + 修正方向】",
+      ...fixLines,
+      "",
+      "请重新输出完整 JSON：fourDimRadar 数值不变，personality.type / traits / description / summary 全部按上述方向重写。不要解释，直接输出新 JSON。",
+    ].join("\n");
+
+    return { userPrompt: userPrompt + feedback };
+  };
+
   try {
     const data = await callWithFallback<Overview>({
       systemPrompt: SYSTEM_PROMPT,
       userPrompt,
       maxTokens: 1500,
       temperature: 0.6,
-      validator: validateOverview,
+      validator: localValidator,
+      onValidationFailure,
       context: "overview",
     });
 

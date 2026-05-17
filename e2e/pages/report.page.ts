@@ -39,25 +39,32 @@ export class ReportPage {
     }
   }
 
-  /** 断言 advice 底部的"上海公共招聘网"链接可见 */
-  async assertExternalLinkVisible() {
+  /** 断言报告底部免责声明文案可见（"上海市公共招聘网"是纯文本提示，非链接） */
+  async assertDisclaimerVisible() {
     await expect(
-      this.page.getByRole("link", { name: /上海市公共招聘网/ }).first(),
+      this.page.getByText(/上海市公共招聘网/).first(),
     ).toBeVisible({ timeout: 10_000 });
   }
 
   /**
-   * 断言四维雷达 + 能力雷达存在（recharts 渲染为 svg + 内部 polygon/path）。
-   * 简单校验：报告页内至少 2 个 svg 元素（OverviewSection + StrengthSection）。
+   * 断言 positioning section 的能力雷达图存在。
+   *
+   * 历史：commit 2a9d30c 起 overview 雷达替换为双极光谱条，positioning 的雷达
+   * 保留但从 recharts 切换为手写 SVG（components/report/positioning-section.tsx
+   * 的 SvgRadar 组件），所以 `svg.recharts-surface` 选择器已失效。
    */
   async assertRadarsPresent() {
-    // recharts ResponsiveContainer 内部渲染 <svg>
-    // 滚动到底部确保所有 section 渲染，再回顶
+    // 滚动到底部确保 positioning section 渲染，再回顶
     await this.page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await this.page.waitForTimeout(1000);
     await this.page.evaluate(() => window.scrollTo(0, 0));
     await this.page.waitForTimeout(500);
-    const svgCount = await this.page.locator("svg.recharts-surface").count();
-    expect(svgCount, "至少 1 个 recharts svg（雷达图）").toBeGreaterThanOrEqual(1);
+    const svgCount = await this.page
+      .locator('[data-pdf-section="positioning"] svg')
+      .count();
+    expect(
+      svgCount,
+      "positioning section 至少 1 个 svg（手写雷达图）",
+    ).toBeGreaterThanOrEqual(1);
   }
 }

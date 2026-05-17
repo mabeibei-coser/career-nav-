@@ -308,12 +308,32 @@ export async function callIflytekJson<T>(
 }
 
 /**
+ * Validator 失败时携带的结构化错误。
+ * 外部钩子可以拿到 issue 字符串和原始 data，决定要不要同链路 retry。
+ * 仅在 callWithFallback 内部 throw/catch，不向外暴露。
+ */
+class ValidationFailedError<T> extends Error {
+  constructor(
+    readonly issue: string,
+    readonly data: T,
+    readonly sectionName: string
+  ) {
+    super(`[${sectionName}] 内容校验失败: ${issue}`);
+    this.name = "ValidationFailedError";
+  }
+}
+
+/**
  * 章节 AI 调用的统一入口：DeepSeek 主 → iFlytek fallback。
  *
  * **失败**包含三种情况，任一出现都会触发切换讯飞 key 重试：
  * 1. API 调用错误（429/529/超时/网络）
  * 2. JSON 解析失败（模型吐残缺 JSON）
  * 3. `validator` 返回非 null 字符串（内容校验不通过——字段缺失/占位符/空串）
+ *
+ * **可选 retry 钩子** `onValidationFailure`：仅在 validator 失败时触发（不触发于 API/JSON 错误）。
+ * 钩子返回 patch（通常是改写后的 userPrompt）→ 在**当前链路**上立即重试一次，
+ * 重试仍失败才进入讯飞兜底。钩子返回 null 跳过 retry，直接走 fallback。
  *
  * 两家都失败抛 **AggregateError**，同时携带两侧错误，便于诊断哪条链路挂了。
  * 未配 IFLYTEK_API_KEY 时自动退化为单路 DeepSeek，调用方无需改 env。
@@ -323,30 +343,61 @@ export async function callWithFallback<T>(
     timeoutMs?: number;
     /** 返回 null = 通过；返回字符串 = 错误原因，触发 fallback */
     validator?: (data: T) => string | null;
+    /**
+     * Validator 失败时的同链路 retry 钩子（可选）。
+     * 返回 patched options（通常 patch userPrompt 加上"上次输出哪里不对"的反馈）→ 当前链路 retry 一次；
+     * 返回 null → 不 retry，直接走讯飞兜底。
+     * 仅 validator 失败触发；API/JSON 错误不触发（这些错误重试同样 prompt 没意义）。
+     */
+    onValidationFailure?: (issue: string, data: T) => Partial<CallOptions> | null;
     /** 用于 AggregateError 的错误信息上下文（如章节名） */
     context?: string;
   }
 ): Promise<T> {
-  const { validator, context, ...callOpts } = opts;
+  const { validator, onValidationFailure, context, ...callOpts } = opts;
   const ctx = context ?? "section";
+
   const runOnce = async (
     caller: "deepseek" | "iflytek",
-    sectionName: string
+    sectionName: string,
+    overrides?: Partial<CallOptions>
   ): Promise<T> => {
+    const finalOpts = { ...callOpts, ...(overrides ?? {}) };
     const data =
       caller === "deepseek"
-        ? await callDeepseekJson<T>(callOpts)
-        : await callIflytekJson<T>(callOpts);
+        ? await callDeepseekJson<T>(finalOpts)
+        : await callIflytekJson<T>(finalOpts);
     if (validator) {
       const issue = validator(data);
-      if (issue) throw new Error(`[${sectionName}] 内容校验失败: ${issue}`);
+      if (issue) throw new ValidationFailedError(issue, data, sectionName);
     }
     return data;
   };
 
+  // 一次完整的"尝试一家"：失败时如有 onValidationFailure 钩子，同家 retry 一次
+  const trySource = async (
+    caller: "deepseek" | "iflytek",
+    label: string
+  ): Promise<T> => {
+    try {
+      return await runOnce(caller, label);
+    } catch (err) {
+      if (err instanceof ValidationFailedError && onValidationFailure) {
+        const patch = onValidationFailure(err.issue, err.data as T);
+        if (patch) {
+          console.warn(
+            `[validation-retry] ${label} 同链路 retry，原因: ${err.issue}`
+          );
+          return await runOnce(caller, `${label}-retry`, patch);
+        }
+      }
+      throw err;
+    }
+  };
+
   let deepseekErr: unknown;
   try {
-    return await runOnce("deepseek", "DeepSeek");
+    return await trySource("deepseek", "DeepSeek");
   } catch (err) {
     deepseekErr = err;
     if (!iflytek) throw err;
@@ -355,7 +406,7 @@ export async function callWithFallback<T>(
   }
 
   try {
-    return await runOnce("iflytek", "iFlytek");
+    return await trySource("iflytek", "iFlytek");
   } catch (iflytekErr) {
     const ifMsg =
       iflytekErr instanceof Error ? iflytekErr.message : String(iflytekErr);

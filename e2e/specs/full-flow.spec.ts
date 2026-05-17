@@ -49,7 +49,7 @@ test.describe("完整流程：form → quiz → interview → report", () => {
 
     await expect(page).toHaveURL(/\/report/);
     await report.assertSectionsVisible();
-    await report.assertExternalLinkVisible();
+    await report.assertDisclaimerVisible();
     await report.assertRadarsPresent();
   });
 
@@ -85,7 +85,7 @@ test.describe("完整流程：form → quiz → interview → report", () => {
 
     await expect(page).toHaveURL(/\/report/);
     await report.assertSectionsVisible();
-    await report.assertExternalLinkVisible();
+    await report.assertDisclaimerVisible();
   });
 
   test.skip("不上传简历也能完整跑（resumeDiagnosis 走跳过分支）", async ({ page, isMobile }) => {
